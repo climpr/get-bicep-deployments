@@ -1,0 +1,1 @@
+# get-bicep-deployments
