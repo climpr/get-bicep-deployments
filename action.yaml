@@ -1,0 +1,95 @@
+name: Get Bicep Deployments
+description: Outputs the list of deployments based on the GitHub event
+
+inputs:
+  deployments-root-directory:
+    description: Root directory for deployments. Supports multi-line input.
+    required: true
+  event-name:
+    description: Github trigger event name.
+    required: true
+  environment:
+    description: Filter which environment to deploy to based on regex pattern.
+    required: false
+    default: .*
+  pattern:
+    description: Filter deployments based on regex pattern. Matches against the deployment name (Directory name).
+    required: false
+    default: .*
+
+runs:
+  using: composite
+  steps:
+    - name: Create root directories array
+      id: create-root-dir-array
+      shell: pwsh
+      env:
+        deploymentsRootDirectory: ${{ inputs.deployments-root-directory }}
+      run: |
+        #* Create root directories array
+        $arr = $env:deploymentsRootDirectory -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        $deploymentRootDirs = ($arr | ConvertTo-Json -Compress -AsArray) ?? "[]"
+        $deploymentRootGlobs = $arr | ForEach-Object { "$_/**" } | Out-File -Path "changedfiles_files_input.txt"
+        Write-Output "deployment-root-dirs=$($deploymentRootDirs)" >> $env:GITHUB_OUTPUT
+
+    - name: Get Changed Files
+      id: changed-files
+      uses: tj-actions/changed-files@v44
+      with:
+        json: true
+        escape_json: false
+        files_from_source_file: "changedfiles_files_input.txt"
+        separator: "|"
+
+    - name: Get deployments
+      id: get-bicep-deployments
+      shell: pwsh
+      env:
+        deploymentsRootDirectory: ${{ steps.create-root-dir-array.outputs.deployment-root-dirs }}
+        eventName: ${{ inputs.event-name }}
+        environmentPattern: ${{ inputs.environment }}
+        pattern: ${{ inputs.pattern }}
+        changedFiles: ${{ steps.changed-files.outputs.all_changed_files }}
+        actionPath: ${{ github.action_path }}
+        debug: ${{ runner.debug }}
+      run: |
+        #* Get-BicepDeployments.ps1
+
+        #* Set debug preference from runner configuration
+        $DebugPreference = [bool]$env:debug ? "Continue" : "SilentlyContinue"
+
+        #* Get deployments
+        $param = @{
+          DeploymentsRootDirectory = $env:deploymentsRootDirectory | ConvertFrom-Json -Depth 1
+          EventName                = $env:eventName
+          ChangedFiles             = $env:changedFiles | ConvertFrom-Json -Depth 3
+          Pattern                  = $env:pattern
+          EnvironmentPattern       = $env:environmentPattern
+        }
+
+        switch ($env:eventName) {
+          'push' {
+            $deployments = & "$($env:actionPath)/src/Get-BicepDeployments.ps1" @param -Mode 'Modified'
+          }
+          'pull_request_target' {
+            $deployments = & "$($env:actionPath)/src/Get-BicepDeployments.ps1" @param -Mode 'Modified'
+          }
+          'schedule' {
+            $deployments = & "$($env:actionPath)/src/Get-BicepDeployments.ps1" @param -Mode 'All'
+          }
+          'workflow_dispatch' {
+            $deployments = & "$($env:actionPath)/src/Get-BicepDeployments.ps1" @param -Mode 'All'
+          }
+          default {
+            $deployments = @()
+          }
+        }
+
+        #* Write outputs
+        $jsonResult = ($deployments | Where-Object { $_.Deploy } | ConvertTo-Json -Compress -AsArray) ?? "[]"
+        Write-Output "deployments=$($jsonResult)" >> $env:GITHUB_OUTPUT
+
+outputs:
+  deployments:
+    description: List of deployments
+    value: ${{ steps.get-bicep-deployments.outputs.deployments }}
