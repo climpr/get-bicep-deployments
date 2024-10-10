@@ -154,24 +154,6 @@ $deploymentObjects = foreach ($deployment in $deployments) {
             Write-Debug "[$deploymentName][$environmentName] Skipping pattern check. Deployment already not included."
         }
         
-        # #* Resolve filtering
-        # Write-Debug "[$deploymentName][$environmentName] Processing deployment inclusion filters."
-        # switch ($Mode) {
-        #     "All" {
-        #         $deploymentObject.Deploy = $true
-        #         Write-Debug "[$deploymentName][$environmentName] Mode is set to 'All'. Deployment included."
-        #     }
-        #     "Modified" {
-        #         if ($deploymentObject.Modified) {
-        #             $deploymentObject.Deploy = $true
-        #             Write-Debug "[$deploymentName][$environmentName] Mode is set to 'Modified'. Deployment is modified. Deployment included."
-        #         }
-        #         else {
-        #             Write-Debug "[$deploymentName][$environmentName] Mode is set to 'Modified'. Deployment is not modified. Deployment not included."
-        #         }
-        #     }
-        # }
-        
         #* Exclude deployments that does not match the requested environment
         if ($deploymentObject.Deploy) {
             Write-Debug "[$deploymentName][$environmentName] Checking if environment matches desired environment."
