@@ -110,8 +110,8 @@ $deploymentObjects = foreach ($deployment in $deployments) {
         }
         
         #* Resolve modified state
-        Write-Debug "[$deploymentName][$environmentName] Checking if any deployment references have been modified. Will only check local files."
         if ($Mode -eq "Modified") {
+            Write-Debug "[$deploymentName][$environmentName] Checking if any deployment references have been modified. Will only check local files."
             foreach ($changedFile in $changedFiles) {
                 if (!(Test-Path $changedFile)) {
                     continue
@@ -121,6 +121,7 @@ $deploymentObjects = foreach ($deployment in $deployments) {
                 }
                 $deploymentObject.Modified = $deploymentObject.References -contains (Resolve-Path -Relative -Path $changedFile)
             }
+            
             if ($deploymentObject.Modified) {
                 Write-Debug "[$deploymentName][$environmentName] At least one of the files used by the deployment have been modified. Deployment included."
             }
@@ -129,39 +130,47 @@ $deploymentObjects = foreach ($deployment in $deployments) {
                 Write-Debug "[$deploymentName][$environmentName] No files used by the deployment have been modified. Deployment not included."
             }
         }
+        else {
+            Write-Debug "[$deploymentName][$environmentName] Skipping modified files check. GitHub event is `"$($EventName)`". All deployments included by default."
+        }
 
         #* Pattern filter
-        Write-Debug "[$deploymentName][$environmentName] Checking if deployment matches pattern filter."
-        if ($Pattern) {
-            if ($deploymentObject.Name -match $Pattern) {
-                $deploymentObject.Deploy = $true
-                Write-Debug "[$deploymentName][$environmentName] Pattern [$Pattern] matched successfully. Deployment included."
+        if ($deploymentObject.Deploy) {
+            Write-Debug "[$deploymentName][$environmentName] Checking if deployment matches pattern filter."
+            if ($Pattern) {
+                if ($deploymentObject.Name -match $Pattern) {
+                    Write-Debug "[$deploymentName][$environmentName] Pattern [$Pattern] matched successfully. Deployment included."
+                }
+                else {
+                    $deploymentObject.Deploy = $false
+                    Write-Debug "[$deploymentName][$environmentName] Pattern [$Pattern] did not match. Deployment not included."
+                }
             }
             else {
-                Write-Debug "[$deploymentName][$environmentName] Pattern [$Pattern] did not match. Deployment not included."
+                Write-Debug "[$deploymentName][$environmentName] No pattern specified. Deployment included."
             }
         }
         else {
-            Write-Debug "[$deploymentName][$environmentName] No pattern specified. Deployment included."
+            Write-Debug "[$deploymentName][$environmentName] Skipping pattern check. Deployment already not included."
         }
         
-        #* Resolve filtering
-        Write-Debug "[$deploymentName][$environmentName] Processing deployment inclusion filters."
-        switch ($Mode) {
-            "All" {
-                $deploymentObject.Deploy = $true
-                Write-Debug "[$deploymentName][$environmentName] Mode is set to 'All'. Deployment included."
-            }
-            "Modified" {
-                if ($deploymentObject.Modified) {
-                    $deploymentObject.Deploy = $true
-                    Write-Debug "[$deploymentName][$environmentName] Mode is set to 'Modified'. Deployment is modified. Deployment included."
-                }
-                else {
-                    Write-Debug "[$deploymentName][$environmentName] Mode is set to 'Modified'. Deployment is not modified. Deployment not included."
-                }
-            }
-        }
+        # #* Resolve filtering
+        # Write-Debug "[$deploymentName][$environmentName] Processing deployment inclusion filters."
+        # switch ($Mode) {
+        #     "All" {
+        #         $deploymentObject.Deploy = $true
+        #         Write-Debug "[$deploymentName][$environmentName] Mode is set to 'All'. Deployment included."
+        #     }
+        #     "Modified" {
+        #         if ($deploymentObject.Modified) {
+        #             $deploymentObject.Deploy = $true
+        #             Write-Debug "[$deploymentName][$environmentName] Mode is set to 'Modified'. Deployment is modified. Deployment included."
+        #         }
+        #         else {
+        #             Write-Debug "[$deploymentName][$environmentName] Mode is set to 'Modified'. Deployment is not modified. Deployment not included."
+        #         }
+        #     }
+        # }
         
         #* Exclude deployments that does not match the requested environment
         if ($deploymentObject.Deploy) {
@@ -179,6 +188,9 @@ $deploymentObjects = foreach ($deployment in $deployments) {
                 Write-Debug "[$deploymentName][$environmentName] No desired environment pattern specified. Deployment is included."
             }
         }
+        else {
+            Write-Debug "[$deploymentName][$environmentName] Skipping environment check. Deployment already not included."
+        }
         
         #* Exclude disabled deployments
         if ($deploymentObject.Deploy) {
@@ -191,6 +203,9 @@ $deploymentObjects = foreach ($deployment in $deployments) {
                 $deploymentObject.Deploy = $false
                 Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for the current trigger [$EventName] in deploymentconfig.json. Deployment is not included."
             }
+        }
+        else {
+            Write-Debug "[$deploymentName][$environmentName] Skipping deploymentconfig.json deployment action check. Deployment already not included."
         }
 
         #* Return deploymentObject
