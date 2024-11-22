@@ -1,6 +1,6 @@
 # Get Bicep Deployments
 
-This action assists in determining which Bicep deployments should be deployed based on conditions like the Github event, modified files, regex and environment filters and the `deploymentconfig.json` configuration file.
+This action assists in determining which Bicep deployments should be deployed based on conditions like the Github event, modified files, regex and environment filters and the `deploymentconfig.json` or `deploymentconfig.jsonc` configuration file.
 
 ## How to use this action
 

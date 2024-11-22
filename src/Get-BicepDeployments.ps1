@@ -176,18 +176,18 @@ $deploymentObjects = foreach ($deployment in $deployments) {
         
         #* Exclude disabled deployments
         if ($deploymentObject.Deploy) {
-            Write-Debug "[$deploymentName][$environmentName] Checking if deployment is disabled in deploymentconfig.json."
+            Write-Debug "[$deploymentName][$environmentName] Checking if deployment is disabled in the deploymentconfig file."
             if ($deploymentConfig.disabled) {
                 $deploymentObject.Deploy = $false
-                Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for all triggers in deploymentconfig.json. Deployment is not included."
+                Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for all triggers in the deploymentconfig file. Deployment is not included."
             }
             if ($deploymentConfig.triggers -and $deploymentConfig.triggers.ContainsKey($EventName) -and $deploymentConfig.triggers[$EventName].disabled) {
                 $deploymentObject.Deploy = $false
-                Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for the current trigger [$EventName] in deploymentconfig.json. Deployment is not included."
+                Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for the current trigger [$EventName] in the deploymentconfig file. Deployment is not included."
             }
         }
         else {
-            Write-Debug "[$deploymentName][$environmentName] Skipping deploymentconfig.json deployment action check. Deployment already not included."
+            Write-Debug "[$deploymentName][$environmentName] Skipping deploymentconfig file deployment action check. Deployment already not included."
         }
 
         #* Return deploymentObject
