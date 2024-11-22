@@ -53,8 +53,8 @@ function Get-DeploymentConfig {
     }
 
     if ($foundFiles.Count -eq 1) {
-        $config = Get-Content -Path $filePath | ConvertFrom-Json -NoEnumerate -Depth $jsonDepth -AsHashtable
-        Write-Debug "[Get-DeploymentConfig()] Found deploymentconfig file: $filePath"
+        $config = Get-Content -Path $foundFiles[0] | ConvertFrom-Json -NoEnumerate -Depth $jsonDepth -AsHashtable
+        Write-Debug "[Get-DeploymentConfig()] Found deploymentconfig file: $($foundFiles[0])"
         Write-Debug "[Get-DeploymentConfig()] Found deploymentconfig: $($config | ConvertTo-Json -Depth $jsonDepth)"
     }
     elseif ($foundFiles.Count -gt 1) {
