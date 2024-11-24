@@ -18,7 +18,7 @@ function Get-DeploymentConfig {
     #* Defaults
     $jsonDepth = 3
 
-    #* Parse default deploymentconfig.json
+    #* Parse default deploymentconfig file
     $defaultDeploymentConfig = @{}
 
     if ($DefaultDeploymentConfigPath) {
@@ -35,26 +35,32 @@ function Get-DeploymentConfig {
         Write-Debug "[Get-DeploymentConfig()] No default deploymentconfig file specified."
     }
 
-    #* Parse most specific deploymentconfig.json file
+    #* Parse most specific deploymentconfig file
     $fileNames = @(
         $ParameterFileName -replace "\.bicepparam$", ".deploymentconfig.json"
+        $ParameterFileName -replace "\.bicepparam$", ".deploymentconfig.jsonc"
         "deploymentconfig.json"
+        "deploymentconfig.jsonc"
     )
 
     $config = @{}
-    $found = $false
+    $foundFiles = @()
     foreach ($fileName in $fileNames) {
         $filePath = Join-Path -Path $DeploymentDirectoryPath -ChildPath $fileName
         if (Test-Path $filePath) {
-            $found = $true
-            $config = Get-Content -Path $filePath | ConvertFrom-Json -NoEnumerate -Depth $jsonDepth -AsHashtable
-            Write-Debug "[Get-DeploymentConfig()] Found deploymentconfig file: $filePath"
-            Write-Debug "[Get-DeploymentConfig()] Found deploymentconfig: $($config | ConvertTo-Json -Depth $jsonDepth)"
-            break
+            $foundFiles += $filePath
         }
     }
 
-    if (!$found) {
+    if ($foundFiles.Count -eq 1) {
+        $config = Get-Content -Path $foundFiles[0] | ConvertFrom-Json -NoEnumerate -Depth $jsonDepth -AsHashtable
+        Write-Debug "[Get-DeploymentConfig()] Found deploymentconfig file: $($foundFiles[0])"
+        Write-Debug "[Get-DeploymentConfig()] Found deploymentconfig: $($config | ConvertTo-Json -Depth $jsonDepth)"
+    }
+    elseif ($foundFiles.Count -gt 1) {
+        throw "[Get-DeploymentConfig()] Found multiple deploymentconfig files. Only one deploymentconfig file is supported. Found files: [$foundFiles]"
+    }
+    else {
         if ($DefaultDeploymentConfigPath) {
             Write-Debug "[Get-DeploymentConfig()] Did not find deploymentconfig file. Using default deploymentconfig file."
         }
