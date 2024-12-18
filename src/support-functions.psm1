@@ -8,7 +8,7 @@ function Get-DeploymentConfig {
         
         [Parameter(Mandatory)]
         [string]
-        $ParameterFileName,
+        $DeploymentFileName,
         
         [ValidateScript({ $_ | Test-Path -PathType Leaf })]
         [string]
@@ -37,8 +37,8 @@ function Get-DeploymentConfig {
 
     #* Parse most specific deploymentconfig file
     $fileNames = @(
-        $ParameterFileName -replace "\.bicepparam$", ".deploymentconfig.json"
-        $ParameterFileName -replace "\.bicepparam$", ".deploymentconfig.jsonc"
+        $DeploymentFileName -replace "\.(bicep|bicepparam)$", ".deploymentconfig.json"
+        $DeploymentFileName -replace "\.(bicep|bicepparam)$", ".deploymentconfig.jsonc"
         "deploymentconfig.json"
         "deploymentconfig.jsonc"
     )
