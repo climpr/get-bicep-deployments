@@ -1,4 +1,6 @@
-Import-Module $PSScriptRoot/../support-functions.psm1 -Force
+BeforeAll {
+    Import-Module $PSScriptRoot/../support-functions.psm1 -Force
+}
 
 Describe "Join-HashTable" {
     Context "When both inputs are empty hashtables" {
