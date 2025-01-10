@@ -1,0 +1,4 @@
+{
+  "$schema": "https://raw.githubusercontent.com/climpr/climpr-schemas/refs/heads/main/schemas/v1.0.0/bicep-deployment/deploymentconfig.json#",
+  "name": "deployment-name"
+}

@@ -47,17 +47,17 @@ $validDirectories = foreach ($path in $DeploymentsRootDirectory) {
     }
 }
 
-$deployments = @(Get-ChildItem -Directory -Path $validDirectories)
-Write-Debug "Found $($deployments.Count) deployments."
+$deploymentDirectories = @(Get-ChildItem -Directory -Path $validDirectories)
+Write-Debug "Found $($deploymentDirectories.Count) deployment directories."
 
 #* Build deployment map from deployment and environments
-$deploymentObjects = foreach ($deployment in $deployments) {
-    $deploymentRelativePath = Resolve-Path -Relative -Path $deployment.FullName
-    Write-Debug "[$($deployment.Name)] Processing started."
-    Write-Debug "[$($deployment.Name)] Deployment directory path: '$deploymentRelativePath'."
+$deploymentObjects = foreach ($deploymentDirectory in $deploymentDirectories) {
+    $deploymentDirectoryRelativePath = Resolve-Path -Relative -Path $deploymentDirectory.FullName
+    Write-Debug "[$($deploymentDirectory.Name)] Processing started."
+    Write-Debug "[$($deploymentDirectory.Name)] Deployment directory path: '$deploymentDirectoryRelativePath'."
     
     #* Resolve deployment name
-    $deploymentName = $deployment.Name
+    $deploymentName = $deploymentDirectory.Name
     
     #* Exclude .examples deployment
     if ($deploymentName -in @(".example", ".examples")) {
@@ -66,30 +66,42 @@ $deploymentObjects = foreach ($deployment in $deployments) {
     }
     
     #* Resolve paths
-    $parameterFiles = Get-ChildItem -Recurse -Depth 5 -Path $deploymentRelativePath -File -Filter "*.bicepparam"
-    
-    #* Warn if no parameter file is found
-    if ($parameterFiles.Count -eq 0) {
-        Write-Warning "[$deploymentName] Skipped. Invalid deployment. No .bicepparam file found."
-        Write-Debug "[$deploymentName] Skipped. Invalid deployment. No .bicepparam file found."
+    $templateFiles = @(Get-ChildItem -Path $deploymentDirectoryRelativePath -File -Filter "*.bicep")
+    $parameterFiles = @(Get-ChildItem -Path $deploymentDirectoryRelativePath -File -Filter "*.bicepparam")
+    $deploymentFiles = @()
+ 
+    if ($parameterFiles.Count -gt 0) {
+        #* Mode is .bicepparam
+        Write-Debug "[$deploymentName]. Found $($parameterFiles.Count) .bicepparam files. Deployments determined by the .bicepparam files."
+        $deploymentFiles = $parameterFiles
+    }
+    elseif ($templateFiles.Count -gt 0) {
+        #* Mode is .bicep
+        Write-Debug "[$deploymentName]. Found $($templateFiles.Count) .bicep files. Deployments determined by the .bicep files."
+        $deploymentFiles = $templateFiles
+    }
+    else {
+        #* Warn if no deployment file is found
+        Write-Warning "[$deploymentName] Skipped. Invalid deployment. No .bicep or .bicepparam file found."
+        Write-Debug "[$deploymentName] Skipped. Invalid deployment. No .bicep or .bicepparam file found."
     }
     
     #* Create deployment objects
-    foreach ($parameterFile in $parameterFiles) {
-        $parameterFileRelativePath = Resolve-Path -Relative -Path $parameterFile.FullName
-        Write-Debug "[$deploymentName][$($parameterFile.BaseName)] Processing parameter file: '$parameterFileRelativePath'."
+    foreach ($deploymentFile in $deploymentFiles) {
+        $deploymentFileRelativePath = Resolve-Path -Relative -Path $deploymentFile.FullName
+        Write-Debug "[$deploymentName][$($deploymentFile.BaseName)] Processing deployment file: '$deploymentFileRelativePath'."
         
         #* Resolve environment
-        $environmentName = ($parameterFile.BaseName -split "\.")[0]
+        $environmentName = ($deploymentFile.BaseName -split "\.")[0]
         Write-Debug "[$deploymentName][$environmentName] Calculated environment: '$environmentName'."
         
         #* Get deploymentConfig
         $deploymentConfig = Get-DeploymentConfig `
-            -DeploymentDirectoryPath $deploymentRelativePath `
-            -ParameterFileName $parameterFileRelativePath
+            -DeploymentDirectoryPath $deploymentDirectoryRelativePath `
+            -DeploymentFileName $deploymentFileRelativePath
 
         #* Get bicep references
-        $references = Get-BicepFileReferences -ParentPath $parameterFile.Directory.FullName -Path $parameterFile.FullName
+        $references = Get-BicepFileReferences -ParentPath $deploymentDirectory.FullName -Path $deploymentFile.FullName
         $relativeReferences = foreach ($reference in $references) {
             #* Filter out br: and ts: references
             if (Test-Path -Path $reference) {
@@ -101,17 +113,18 @@ $deploymentObjects = foreach ($deployment in $deployments) {
         #* Create deploymentObject
         Write-Debug "[$deploymentName][$environmentName] Creating deploymentObject."
         $deploymentObject = [pscustomobject]@{
-            Name          = "$deploymentName-$environmentName"
-            Environment   = $environmentName
-            ParameterFile = $parameterFile.FullName
-            References    = $relativeReferences
-            Deploy        = $true
-            Modified      = $false
+            Name           = "$deploymentName-$environmentName"
+            Environment    = $environmentName
+            DeploymentFile = $deploymentFile.FullName
+            ParameterFile  = $parameterFile.FullName
+            References     = $relativeReferences
+            Deploy         = $true
+            Modified       = $false
         }
         
         #* Resolve modified state
-        Write-Debug "[$deploymentName][$environmentName] Checking if any deployment references have been modified. Will only check local files."
         if ($Mode -eq "Modified") {
+            Write-Debug "[$deploymentName][$environmentName] Checking if any deployment references have been modified. Will only check local files."
             foreach ($changedFile in $changedFiles) {
                 if (!(Test-Path $changedFile)) {
                     continue
@@ -121,6 +134,7 @@ $deploymentObjects = foreach ($deployment in $deployments) {
                 }
                 $deploymentObject.Modified = $deploymentObject.References -contains (Resolve-Path -Relative -Path $changedFile)
             }
+            
             if ($deploymentObject.Modified) {
                 Write-Debug "[$deploymentName][$environmentName] At least one of the files used by the deployment have been modified. Deployment included."
             }
@@ -129,38 +143,28 @@ $deploymentObjects = foreach ($deployment in $deployments) {
                 Write-Debug "[$deploymentName][$environmentName] No files used by the deployment have been modified. Deployment not included."
             }
         }
+        else {
+            Write-Debug "[$deploymentName][$environmentName] Skipping modified files check. GitHub event is `"$($EventName)`". All deployments included by default."
+        }
 
         #* Pattern filter
-        Write-Debug "[$deploymentName][$environmentName] Checking if deployment matches pattern filter."
-        if ($Pattern) {
-            if ($deploymentObject.Name -match $Pattern) {
-                $deploymentObject.Deploy = $true
-                Write-Debug "[$deploymentName][$environmentName] Pattern [$Pattern] matched successfully. Deployment included."
+        if ($deploymentObject.Deploy) {
+            Write-Debug "[$deploymentName][$environmentName] Checking if deployment matches pattern filter."
+            if ($Pattern) {
+                if ($deploymentObject.Name -match $Pattern) {
+                    Write-Debug "[$deploymentName][$environmentName] Pattern [$Pattern] matched successfully. Deployment included."
+                }
+                else {
+                    $deploymentObject.Deploy = $false
+                    Write-Debug "[$deploymentName][$environmentName] Pattern [$Pattern] did not match. Deployment not included."
+                }
             }
             else {
-                Write-Debug "[$deploymentName][$environmentName] Pattern [$Pattern] did not match. Deployment not included."
+                Write-Debug "[$deploymentName][$environmentName] No pattern specified. Deployment included."
             }
         }
         else {
-            Write-Debug "[$deploymentName][$environmentName] No pattern specified. Deployment included."
-        }
-        
-        #* Resolve filtering
-        Write-Debug "[$deploymentName][$environmentName] Processing deployment inclusion filters."
-        switch ($Mode) {
-            "All" {
-                $deploymentObject.Deploy = $true
-                Write-Debug "[$deploymentName][$environmentName] Mode is set to 'All'. Deployment included."
-            }
-            "Modified" {
-                if ($deploymentObject.Modified) {
-                    $deploymentObject.Deploy = $true
-                    Write-Debug "[$deploymentName][$environmentName] Mode is set to 'Modified'. Deployment is modified. Deployment included."
-                }
-                else {
-                    Write-Debug "[$deploymentName][$environmentName] Mode is set to 'Modified'. Deployment is not modified. Deployment not included."
-                }
-            }
+            Write-Debug "[$deploymentName][$environmentName] Skipping pattern check. Deployment already not included."
         }
         
         #* Exclude deployments that does not match the requested environment
@@ -179,18 +183,24 @@ $deploymentObjects = foreach ($deployment in $deployments) {
                 Write-Debug "[$deploymentName][$environmentName] No desired environment pattern specified. Deployment is included."
             }
         }
+        else {
+            Write-Debug "[$deploymentName][$environmentName] Skipping environment check. Deployment already not included."
+        }
         
         #* Exclude disabled deployments
         if ($deploymentObject.Deploy) {
-            Write-Debug "[$deploymentName][$environmentName] Checking if deployment is disabled in deploymentconfig.json."
+            Write-Debug "[$deploymentName][$environmentName] Checking if deployment is disabled in the deploymentconfig file."
             if ($deploymentConfig.disabled) {
                 $deploymentObject.Deploy = $false
-                Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for all triggers in deploymentconfig.json. Deployment is not included."
+                Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for all triggers in the deploymentconfig file. Deployment is not included."
             }
             if ($deploymentConfig.triggers -and $deploymentConfig.triggers.ContainsKey($EventName) -and $deploymentConfig.triggers[$EventName].disabled) {
                 $deploymentObject.Deploy = $false
-                Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for the current trigger [$EventName] in deploymentconfig.json. Deployment is not included."
+                Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for the current trigger [$EventName] in the deploymentconfig file. Deployment is not included."
             }
+        }
+        else {
+            Write-Debug "[$deploymentName][$environmentName] Skipping deploymentconfig file deployment action check. Deployment already not included."
         }
 
         #* Return deploymentObject

@@ -1,6 +1,6 @@
 # Get Bicep Deployments
 
-This action assists in determining which Bicep deployments should be deployed based on conditions like the Github event, modified files, regex and environment filters and the `deploymentconfig.json` configuration file.
+This action assists in determining which Bicep deployments should be deployed based on conditions like the Github event, modified files, regex and environment filters and the `deploymentconfig.json` or `deploymentconfig.jsonc` configuration file.
 
 ## How to use this action
 
@@ -23,7 +23,7 @@ steps:
 
   - name: Get Bicep Deployments
     id: get-bicep-deployments
-    uses: climpr/get-bicep-deployments@v0
+    uses: climpr/get-bicep-deployments@v1
     with:
       deployments-root-directory: deployments
 # ...
@@ -95,14 +95,14 @@ jobs:
 
       - name: Get Bicep Deployments
         id: get-bicep-deployments
-        uses: climpr/get-bicep-deployments@v0
+        uses: climpr/get-bicep-deployments@v1
         with:
           deployments-root-directory: deployments
           pattern: sample-deployment
 
       - name: Run Bicep deployments
         id: deploy-bicep
-        uses: climpr/deploy-bicep@v0
+        uses: climpr/deploy-bicep@v1
         with:
           parameter-file-path: deployments/sample-deployment/prod.bicepparam
 ```
@@ -145,7 +145,7 @@ jobs:
 
       - name: Get Bicep Deployments
         id: get-bicep-deployments
-        uses: climpr/get-bicep-deployments@v0
+        uses: climpr/get-bicep-deployments@v1
         with:
           deployments-root-directory: deployment-manager/deployments
           event-name: ${{ github.event_name }}
@@ -185,7 +185,7 @@ jobs:
 
       - name: Run Bicep deployments
         id: deploy-bicep
-        uses: climpr/deploy-bicep@v0
+        uses: climpr/deploy-bicep@v1
         with:
           parameter-file-path: ${{ matrix.ParameterFile }}
           what-if: "false"
