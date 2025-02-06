@@ -40,7 +40,7 @@ Describe "Get-BicepDeployments.ps1" {
         }
 
         It "Should contain all the deployments" {
-            $res | Should -HaveCount 7
+            $res | Should -HaveCount 8
             $res.Name | Should -Contain "workload-local-dev"
             $res.Name | Should -Contain "workload-remote-modules-prod"
             $res.Name | Should -Contain "workload-remote-param-dev"
@@ -48,6 +48,7 @@ Describe "Get-BicepDeployments.ps1" {
             $res.Name | Should -Contain "no-param-single-dev"
             $res.Name | Should -Contain "no-param-multi-dev"
             $res.Name | Should -Contain "no-param-multi-prod"
+            $res.Name | Should -Contain "extendable-param-multi-dev"
         }
     }
 
@@ -85,7 +86,7 @@ Describe "Get-BicepDeployments.ps1" {
         }
 
         It "Should contain all the deployments" {
-            $res | Should -HaveCount 7
+            $res | Should -HaveCount 8
             $res.Name | Should -Contain "workload-local-dev"
             $res.Name | Should -Contain "workload-remote-modules-prod"
             $res.Name | Should -Contain "workload-remote-param-dev"
@@ -93,6 +94,7 @@ Describe "Get-BicepDeployments.ps1" {
             $res.Name | Should -Contain "no-param-single-dev"
             $res.Name | Should -Contain "no-param-multi-dev"
             $res.Name | Should -Contain "no-param-multi-prod"
+            $res.Name | Should -Contain "extendable-param-multi-dev"
         }
     }
 }

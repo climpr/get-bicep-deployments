@@ -91,6 +91,22 @@ $deploymentObjects = foreach ($deploymentDirectory in $deploymentDirectories) {
         $deploymentFileRelativePath = Resolve-Path -Relative -Path $deploymentFile.FullName
         Write-Debug "[$deploymentName][$($deploymentFile.BaseName)] Processing deployment file: '$deploymentFileRelativePath'."
         
+        #* Determine if it's an extended .bicepparam file
+        Write-Debug "[$deploymentName][$($deploymentFile.BaseName)] Determining if the deployment is a .bicepparam file and the .bicepparam file is an extended parameter file."
+        if ($deploymentFile.Extension -eq ".bicepparam") {
+            $target = Resolve-ParameterFileTarget -Path $deploymentFileRelativePath
+            if ($target -eq "none") {
+                Write-Debug "[$deploymentName][$($deploymentFile.BaseName)] Skipped file as it is an extended .bicepparam file."
+                continue
+            }
+            else {
+                Write-Debug "[$deploymentName][$($deploymentFile.BaseName)] Bicepparam file is not extended. Continuing. Target: '$target'."
+            }
+        }
+        else {
+            Write-Debug "[$deploymentName][$($deploymentFile.BaseName)] Deployment is a .bicep file. Continuing."
+        }
+
         #* Resolve environment
         $environmentName = ($deploymentFile.BaseName -split "\.")[0]
         Write-Debug "[$deploymentName][$environmentName] Calculated environment: '$environmentName'."
