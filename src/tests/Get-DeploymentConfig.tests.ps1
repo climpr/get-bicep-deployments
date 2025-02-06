@@ -90,8 +90,8 @@ Describe "Get-DeploymentConfig.ps1" {
             $script:res = Get-DeploymentConfig @commonParam @param
         }
 
-        It "The 'azureCliVersion' property should be '2.59.0'" {
-            $res.azureCliVersion | Should -Be "2.59.0"
+        It "The 'azureCliVersion' property should be '2.68.0'" {
+            $res.azureCliVersion | Should -Be "2.68.0"
         }
     }
 }
