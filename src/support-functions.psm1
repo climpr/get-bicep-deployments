@@ -116,11 +116,12 @@ function Get-BicepFileReferences {
     $rxOptionalSpace = "(?:\s*)"
     $rxSingleQuote = "(?:')"
     $rxUsing = "(?:using(?:\s+))"
+    $rxExtends = "(?:extends(?:\s+))"
     $rxModule = "(?:module(?:\s+)(?:.+?)(?:\s+))"
     $rxFunctions = "(?:(?:loadFileAsBase64|loadJsonContent|loadYamlContent|loadTextContent)$rxOptionalSpace\()"
 
     #* Complete regex
-    $regex = "(?:$rxUsing|$rxModule|$rxFunctions)$rxSingleQuote(?:$rxOptionalSpace(.+?))$rxSingleQuote"
+    $regex = "(?:$rxUsing|$rxExtends|$rxModule|$rxFunctions)$rxSingleQuote(?:$rxOptionalSpace(.+?))$rxSingleQuote"
 
     #* Set temporary relative location
     Push-Location -Path $parentFullPath
@@ -141,6 +142,79 @@ function Get-BicepFileReferences {
 
     #* Return path
     $relativePath
+}
+
+function Resolve-ParameterFileTarget {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory, ParameterSetName = 'Path')]
+        [string]
+        $Path,
+
+        [Parameter(Mandatory, ParameterSetName = 'Content')]
+        $Content
+    )
+
+    if ($Path) {
+        $Content = Get-Content -Path $Path
+    }
+    $cleanContent = ConvertTo-UncommentedBicep -Content $Content
+
+    #* Build regex pattern
+    #* Pieces of the regex for better readability
+    $rxOptionalSpace = "(?:\s*)"
+    $rxSingleQuote = "(?:')"
+    $rxUsing = "(?:using(?:\s*))"
+    $rxNone = "(none)"
+    $rxReference = "$rxSingleQuote(?:$rxOptionalSpace(.+?))$rxSingleQuote"
+
+    #* Complete regex
+    $regexReference = "^(?:$rxUsing)(?:$rxReference).*?"
+    $regexNone = "^(?:$rxUsing)(?:$rxNone).*?"
+
+    $contentMatchesRegex = $null
+
+    #* Match reference
+    $contentMatchesRegex = $cleanContent | Select-String -AllMatches -Pattern $regexReference
+    if (!$contentMatchesRegex) {
+
+        #* Match "none" (for extendable param files)
+        $contentMatchesRegex = $cleanContent | Select-String -AllMatches -Pattern $regexNone
+
+        #* No matches
+        if (!$contentMatchesRegex) {
+            throw "[Resolve-ParameterFileTarget()] Valid 'using' statement not found in parameter file content."
+        }
+    }
+    
+    $usingReference = $contentMatchesRegex.Matches.Groups[1].Value
+    Write-Debug "[Resolve-ParameterFileTarget()] Valid 'using' statement found in parameter file content."
+    Write-Debug "[Resolve-ParameterFileTarget()] Resolved: '$usingReference'"
+
+    return $usingReference
+}
+
+function ConvertTo-UncommentedBicep {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        $Content
+    )
+    
+    #* Convert to single string
+    $rawContent = $Content -join [System.Environment]::NewLine
+
+    #* Remove block comments
+    $rawContent = $rawContent -replace '/\*[\s\S]*?\*/', ''
+
+    #* Remove single-line comments
+    $rawContent = $rawContent -replace '//.*', ''
+
+    #* Convert to array of strings
+    $contentArray = $rawContent -split [System.Environment]::NewLine
+
+    #* Return
+    $contentArray
 }
 
 function Join-HashTable {
