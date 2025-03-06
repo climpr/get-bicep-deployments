@@ -64,6 +64,12 @@ $deploymentObjects = foreach ($deploymentDirectory in $deploymentDirectories) {
         Write-Debug "[$deploymentName]. Skipped. Is example deployment."
         continue
     }
+
+    #* Exclude common module directory names from deployment
+    if ($deploymentName -in @("modules", ".bicep")) {
+        Write-Debug "[$deploymentName]. Skipped. Is modules directory."
+        continue
+    }
     
     #* Resolve paths
     $templateFiles = @(Get-ChildItem -Path $deploymentDirectoryRelativePath -File -Filter "*.bicep")
