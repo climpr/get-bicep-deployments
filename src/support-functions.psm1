@@ -35,6 +35,16 @@ function Get-DeploymentConfig {
         Write-Debug "[Get-DeploymentConfig()] No default deploymentconfig file specified."
     }
 
+    #* Parse ClimprConfig
+    $climprConfig = Get-ClimprConfig -DeploymentDirectoryPath $DeploymentDirectoryPath
+    $climprConfigOptions = @{}
+    if ($climprConfig.bicepDeployment -and $climprConfig.bicepDeployment.location) {
+        $climprConfigOptions.Add("location", $climprConfig.bicepDeployment.location)
+    }
+    if ($climprConfig.bicepDeployment -and $climprConfig.bicepDeployment.azureCliVersion) {
+        $climprConfigOptions.Add("azureCliVersion", $climprConfig.bicepDeployment.azureCliVersion)
+    }
+
     #* Parse most specific deploymentconfig file
     $fileNames = @(
         $DeploymentFileName -replace "\.(bicep|bicepparam)$", ".deploymentconfig.json"
@@ -69,7 +79,9 @@ function Get-DeploymentConfig {
         }
     }
     
-    $deploymentConfig = Join-HashTable -Hashtable1 $defaultDeploymentConfig -Hashtable2 $config
+    #* Merge configurations
+    $deploymentConfig = Join-HashTable -Hashtable1 $defaultDeploymentConfig -Hashtable2 $climprConfigOptions
+    $deploymentConfig = Join-HashTable -Hashtable1 $deploymentConfig -Hashtable2 $config
 
     #* Return config object
     $deploymentConfig
@@ -157,75 +169,195 @@ function Resolve-ParameterFileTarget {
     )
 
     if ($Path) {
-        $Content = Get-Content -Path $Path
+        $Content = Get-Content -Path $Path -Raw
     }
     $cleanContent = Remove-BicepComments -Content $Content
 
     #* Build regex pattern
     #* Pieces of the regex for better readability
+    $rxMultiline = "(?sm)"
     $rxOptionalSpace = "(?:\s*)"
     $rxSingleQuote = "(?:')"
-    $rxUsing = "(?:using(?:\s*))"
+    $rxUsing = "(?:using)"
     $rxNone = "(none)"
-    $rxReference = "$rxSingleQuote(?:$rxOptionalSpace(.+?))$rxSingleQuote"
+    $rxReference = "(?:$($rxSingleQuote)(?:$($rxOptionalSpace)(.+?))$($rxSingleQuote))"
 
     #* Complete regex
-    $regexReference = "^(?:$rxUsing)(?:$rxReference).*?"
-    $regexNone = "^(?:$rxUsing)(?:$rxNone).*?"
+    #* Normal bicepparam files
+    # (?sm)^(?:\s*)(?:using)(?:\s*)(?:(?:')(?:(?:\s*)(.+?))(?:')).*?
+    $regexReference = "$($rxMultiline)^$($rxOptionalSpace)$($rxUsing)$($rxOptionalSpace)$($rxReference).*?"
 
-    $contentMatchesRegex = $null
+    #* Extendable bicepparam files
+    # (?sm)^(?:\s*)(?:using)(?:\s*)(none).*?
+    $regexNone = "$($rxMultiline)^$($rxOptionalSpace)$($rxUsing)$($rxOptionalSpace)$($rxNone).*?"
 
-    #* Match reference
-    $contentMatchesRegex = $cleanContent | Select-String -AllMatches -Pattern $regexReference
-    if (!$contentMatchesRegex) {
-
-        #* Match "none" (for extendable param files)
-        $contentMatchesRegex = $cleanContent | Select-String -AllMatches -Pattern $regexNone
-
-        #* No matches
-        if (!$contentMatchesRegex) {
-            throw "[Resolve-ParameterFileTarget()] Valid 'using' statement not found in parameter file content."
-        }
+    if ($cleanContent -match $regexReference -or $cleanContent -match $regexNone) {
+        $usingReference = $Matches[1]
+        Write-Debug "[Resolve-ParameterFileTarget()] Valid 'using' statement found in parameter file content."
+        Write-Debug "[Resolve-ParameterFileTarget()] Resolved: '$usingReference'"
+    }
+    else {
+        throw "[Resolve-ParameterFileTarget()] Valid 'using' statement not found in parameter file content."
     }
     
-    $usingReference = $contentMatchesRegex.Matches.Groups[1].Value
-    Write-Debug "[Resolve-ParameterFileTarget()] Valid 'using' statement found in parameter file content."
-    Write-Debug "[Resolve-ParameterFileTarget()] Resolved: '$usingReference'"
-
     return $usingReference
 }
 
-function Remove-BicepComments {
-    param ([string]$Content)
+function Resolve-TemplateDeploymentScope {
+    [CmdletBinding()]
+    param (
+        [parameter(Mandatory)]
+        [ValidateScript({ $_ | Test-Path -PathType Leaf })]
+        [string]
+        $DeploymentFilePath,
+
+        [parameter(Mandatory)]
+        [hashtable]
+        $DeploymentConfig
+    )
+
+    $targetScope = ""
+    $deploymentFile = Get-Item -Path $DeploymentFilePath
     
-    # Preserve strings before removing comments
-    $stringPattern = "'([^']*)'"
-    $strings = @{}
-    $Content = $Content -replace $stringPattern, {
-        $key = "__STRING$($strings.Count)__"
-        $strings[$key] = $_
-        return $key
+    if ($deploymentFile.Extension -eq ".bicep") {
+        $referenceString = $deploymentFile.Name
     }
-    
-    # Remove comments
-    $Content = $Content -replace "//.*", ""  # Single-line comments
-    $Content = $Content -replace "/\*([\s\S]*?)\*/", ""  # Multi-line comments
-    
-    # Restore strings
-    foreach ($key in $strings.Keys) {
-        $Content = $Content -replace [regex]::Escape($key), $strings[$key]
+    elseif ($deploymentFile.Extension -eq ".bicepparam") {
+        $referenceString = Resolve-ParameterFileTarget -Path $DeploymentFilePath
     }
-    
-    # Trim leading/trailing whitespace for each line
-    $Content = ($Content -split "`r?`n" | ForEach-Object { $_.Trim() }) -join "`n"
-    
-    # Replace multiple blank lines with a single blank line outside of strings
-    $Content = $Content -replace "(\n{2,})", "`n"
-    
-    # Remove leading and trailing blank lines
-    $Content = $Content -replace "^(\n)+|(\n)+$", ""
-    
-    return $Content
+    else {
+        throw "Deployment file extension not supported. Only .bicep and .bicepparam is supported. Input deployment file extension: '$($deploymentFile.Extension)'"
+    }
+
+    if ($referenceString -match "^(br|ts)[\/:]") {
+        #* Is remote template
+
+        #* Resolve local cache path
+        if ($referenceString -match "^(br|ts)\/(.+?):(.+?):(.+?)$") {
+            #* Is alias
+
+            #* Get active bicepconfig.json
+            $bicepConfig = Get-BicepConfig -Path $DeploymentFilePath | Select-Object -ExpandProperty Config | ConvertFrom-Json -AsHashtable -NoEnumerate
+            
+            $type = $Matches[1]
+            $alias = $Matches[2]
+            $registryFqdn = $bicepConfig.moduleAliases[$type][$alias].registry
+            $modulePath = $bicepConfig.moduleAliases[$type][$alias].modulePath
+            $templateName = $Matches[3]
+            $version = $Matches[4]
+            $modulePathElements = $($modulePath -split "/"; $templateName -split "/")
+        }
+        elseif ($referenceString -match "^(br|ts):(.+?)/(.+?):(.+?)$") {
+            #* Is FQDN
+            $type = $Matches[1]
+            $registryFqdn = $Matches[2]
+            $modulePath = $Matches[3]
+            $version = $Matches[4]
+            $modulePathElements = $modulePath -split "/"
+        }
+
+        #* Find cached template reference
+        $cachePath = "~/.bicep/$type/$registryFqdn/$($modulePathElements -join "$")/$version`$/"
+
+        if (!(Test-Path -Path $cachePath)) {
+            #* Restore .bicep or .bicepparam file to ensure templates are located in the cache
+            bicep restore $DeploymentFilePath
+
+            Write-Debug "[Resolve-TemplateDeploymentScope()] Target template is not cached locally. Running force restore operation on template."
+            
+            if (Test-Path -Path $cachePath) {
+                Write-Debug "[Resolve-TemplateDeploymentScope()] Target template cached successfully."
+            }
+            else {
+                Write-Debug "[Resolve-TemplateDeploymentScope()] Target template failed to restore. Target reference string: '$referenceString'. Local cache path: '$cachePath'"
+                throw "Unable to restore target template '$referenceString'"
+            }
+        }
+
+        #* Resolve deployment scope
+        $armTemplate = Get-Content -Path "$cachePath/main.json" | ConvertFrom-Json -Depth 30 -AsHashtable -NoEnumerate
+        
+        switch -Regex ($armTemplate.'$schema') {
+            "^.+?\/deploymentTemplate\.json#" {
+                $targetScope = "resourceGroup"
+            }
+            "^.+?\/subscriptionDeploymentTemplate\.json#" {
+                $targetScope = "subscription" 
+            }
+            "^.+?\/managementGroupDeploymentTemplate\.json#" {
+                $targetScope = "managementGroup" 
+            }
+            "^.+?\/tenantDeploymentTemplate\.json#" {
+                $targetScope = "tenant" 
+            }
+            default {
+                throw "[Resolve-TemplateDeploymentScope()] Non-supported `$schema property in target template. Unable to ascertain the deployment scope." 
+            }
+        }
+    }
+    else {
+        #* Is local template
+        Push-Location -Path $deploymentFile.Directory.FullName
+        
+        #* Get template content
+        $content = Get-Content -Path $referenceString -Raw
+        Pop-Location
+        
+        #* Ensure Bicep is free of comments
+        $cleanContent = Remove-BicepComments -Content $content
+        
+        #* Regex for finding 'targetScope' statement in template file
+        if ($cleanContent -match "(?sm)^(?:\s)*?targetScope") {
+            #* targetScope property is present
+            
+            #* Build regex pattern
+            #* Pieces of the regex for better readability
+            $rxMultiline = "(?sm)"
+            $rxOptionalSpace = "(?:\s*)"
+            $rxSingleQuote = "(?:')"
+            $rxTarget = "(?:targetScope)"
+            $rxScope = "(?:$rxSingleQuote(?:$rxOptionalSpace(resourceGroup|subscription|managementGroup|tenant))$rxSingleQuote)"
+
+            #* Complete regex
+            # (?sm)^(?:\s*)(?:targetScope)(?:\s*)=(?:\s*)(?:(?:')(?:(?:\s*)(resourceGroup|subscription|managementGroup|tenant))(?:')).*?
+            $regex = "$($rxMultiline)^$($rxOptionalSpace)$($rxTarget)$($rxOptionalSpace)=$($rxOptionalSpace)$($rxScope).*?"
+
+            if ($cleanContent -match $regex) {
+                $targetScope = $Matches[1]
+                Write-Debug "[Resolve-TemplateDeploymentScope()] Valid 'targetScope' statement found in template file content."
+                Write-Debug "[Resolve-TemplateDeploymentScope()] Resolved: '$($targetScope)'"
+            }
+            else {
+                throw "[Resolve-ParameterFileTarget()] Invalid 'targetScope' statement found in template file content. Must either not be present, or be one of 'resourceGroup', 'subscription', 'managementGroup' or 'tenant'"
+            }
+        }
+        else {
+            #* targetScope property is not present. Defaulting to 'resourceGroup'
+            Write-Debug "[Resolve-TemplateDeploymentScope()] Valid 'targetScope' statement not found in parameter file content. Defaulting to resourceGroup scope"
+            $targetScope = "resourceGroup"
+        }
+    }
+
+    Write-Debug "[Resolve-TemplateDeploymentScope()] TargetScope resolved as: $targetScope"
+
+    #* Validate required deploymentconfig properties for scopes
+    switch ($targetScope) {
+        "resourceGroup" {
+            if (!$DeploymentConfig.ContainsKey("resourceGroupName")) {
+                throw "[Resolve-TemplateDeploymentScope()] Target scope is resourceGroup, but resourceGroupName property is not present in the deploymentConfig file"
+            }
+        }
+        "subscription" {}
+        "managementGroup" {
+            if (!$DeploymentConfig.ContainsKey("managementGroupId")) {
+                throw "[Resolve-TemplateDeploymentScope()] Target scope is managementGroup, but managementGroupId property is not present in the deploymentConfig file"
+            }
+        }
+        "tenant" {}
+    }
+
+    #* Return target scope
+    $targetScope
 }
 
 function Join-HashTable {
@@ -266,4 +398,80 @@ function Join-HashTable {
     }
     
     return $Hashtable2
+}
+
+function Remove-BicepComments {
+    param ([string]$Content)
+
+    # Normalize line endings to Unix style for consistency
+    $Content = $Content -replace "`r`n", "`n"
+
+    # Preserve strings before removing comments (ensuring single-line strings only)
+    $stringPattern = "'[^'\r\n]*'"
+    $strings = @{}
+    $Content = $Content -replace $stringPattern, {
+        $key = "__STRING$($strings.Count)__"
+        $strings[$key] = $_
+        return $key
+    }
+
+    # Remove comments
+    $Content = $Content -replace "//.*", ""  # Single-line comments
+    $Content = $Content -replace "/\*[\s\S]*?\*/", ""  # Multi-line comments (non-greedy)
+
+    # Restore strings
+    foreach ($key in $strings.Keys) {
+        $Content = $Content -replace [regex]::Escape($key), $strings[$key]
+    }
+
+    # Replace multiple blank lines with a single blank line outside of strings
+    $Content = $Content -replace "(\n{2,})", "`n`n"
+    
+    # Trim trailing whitespace on each line
+    $Content = ($Content -split "`n" | ForEach-Object { $_.TrimEnd() }) -join "`n"
+
+    # Remove leading and trailing blank lines
+    $Content = $Content -replace "^\s*\n+|\n+\s*$", ""
+
+    return $Content
+}
+
+function Get-ClimprConfig {
+    [CmdletBinding()]
+    param (
+        # Specifies the deployment directory path as a mandatory parameter
+        [Parameter(Mandatory)]
+        [ValidateScript({ Test-Path $_ -PathType Container })] # Ensures the path exists and is a directory
+        [string]$DeploymentDirectoryPath
+    )
+
+    # Stack to store paths of found climpr configuration files
+    $configPaths = [System.Collections.Generic.Stack[string]]::new()
+    
+    # Traverse up the directory tree without changing the working directory
+    $currentPath = Get-Item -Path $DeploymentDirectoryPath
+    while ($currentPath -and ($currentPath.FullName -ne [System.IO.Path]::GetPathRoot($currentPath.FullName))) {
+        foreach ($file in @("climprconfig.jsonc", "climprconfig.json")) {
+            $filePath = Join-Path -Path $currentPath.FullName -ChildPath $file
+            if (Test-Path $filePath) {
+                $configPaths.Push($filePath)
+                break # Skip .json file if .jsonc file is found
+            }
+        }
+        $currentPath = $currentPath.Parent
+    }
+
+    # Merge configuration files
+    $mergedConfig = @{}
+    foreach ($path in $configPaths) {
+        try {
+            $config = Get-Content -Path $path -ErrorAction Stop | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+            $mergedConfig = Join-HashTable -Hashtable1 $mergedConfig -Hashtable2 $config
+        }
+        catch {
+            Write-Warning "Skipping invalid JSON file: $path"
+        }
+    }
+
+    return $mergedConfig
 }
