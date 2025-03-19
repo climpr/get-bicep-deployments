@@ -269,6 +269,10 @@ if (!$Quiet) {
 }
 
 #* Return deploymentObjects
-$deploymentObjects | Where-Object { $_.Deploy }
+$result = @()
+foreach ($deploymentObject in ($deploymentObjects | Where-Object { $_.Deploy })) {
+    $result += $deploymentObject
+}
+return , $result
 
 Write-Debug "Get-BicepDeployments.ps1: Completed"

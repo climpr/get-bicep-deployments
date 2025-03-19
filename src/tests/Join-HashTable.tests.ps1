@@ -3,90 +3,76 @@ BeforeAll {
 }
 
 Describe "Join-HashTable" {
-    Context "When both inputs are empty hashtables" {
-        BeforeAll {
-            $script:result = Join-Hashtable -Hashtable1 @{} -Hashtable2 @{}
-        }
-        
-        It "It should return an empty hashtable" {
+    Context "Basic hashtable operations" {
+        It "Should handle <Scenario>" -TestCases @(
+            @{
+                Scenario       = "empty hashtables"
+                Hash1          = @{}
+                Hash2          = @{}
+                ExpectedCount  = 0
+                ExpectedValues = @{}
+            }
+            @{
+                Scenario       = "first hashtable empty"
+                Hash1          = @{}
+                Hash2          = @{ key1 = "value1" }
+                ExpectedCount  = 1
+                ExpectedValues = @{ key1 = "value1" }
+            }
+            @{
+                Scenario       = "second hashtable empty"
+                Hash1          = @{ key1 = "value1" }
+                Hash2          = @{}
+                ExpectedCount  = 1
+                ExpectedValues = @{ key1 = "value1" }
+            }
+            @{
+                Scenario       = "equal hashtables"
+                Hash1          = @{ key1 = "value1" }
+                Hash2          = @{ key1 = "value1" }
+                ExpectedCount  = 1
+                ExpectedValues = @{ key1 = "value1" }
+            }
+            @{
+                Scenario       = "different keys"
+                Hash1          = @{ key1 = "value1" }
+                Hash2          = @{ key2 = "value2" }
+                ExpectedCount  = 2
+                ExpectedValues = @{ key1 = "value1"; key2 = "value2" }
+            }
+            @{
+                Scenario       = "same key different values"
+                Hash1          = @{ key1 = "value1" }
+                Hash2          = @{ key1 = "value2" }
+                ExpectedCount  = 1
+                ExpectedValues = @{ key1 = "value2" }
+            }
+        ) {
+            param ($Hash1, $Hash2, $ExpectedCount, $ExpectedValues)
+            
+            $result = Join-Hashtable -Hashtable1 $Hash1 -Hashtable2 $Hash2
+            
             $result | Should -BeOfType [hashtable]
-            $result.Keys | Should -HaveCount 0
-        }
-    }
-
-    Context "When the first hashtable is empty" {
-        BeforeAll {
-            $script:result = Join-Hashtable -Hashtable1 @{} -Hashtable2 @{ key1 = "value1" }
-        }
-
-        It "It should return a hashtable equal to the second hashtable" {
-            $result | Should -BeOfType [hashtable]
-            $result.Keys | Should -HaveCount 1
-            $result.key1 | Should -Be "value1"
-        }
-    }
-    
-    Context "When the second hashtable is empty" {
-        BeforeAll {
-            $script:result = Join-Hashtable -Hashtable1 @{ key1 = "value1" } -Hashtable2 @{}
-        }
-
-        It "It should return a hashtable equal to the first hashtable" {
-            $result | Should -BeOfType [hashtable]
-            $result.Keys | Should -HaveCount 1
-            $result.key1 | Should -Be "value1"
-        }
-    }
-    
-    Context "When the hashtables are equal" {
-        BeforeAll {
-            $script:result = Join-Hashtable -Hashtable1 @{ key1 = "value1" } -Hashtable2 @{ key1 = "value1" }
-        }
-
-        It "It should return a hashtable equal to one of the hashtables" {
-            $result | Should -BeOfType [hashtable]
-            $result.Keys | Should -HaveCount 1
-            $result.key1 | Should -Be "value1"
-        }
-    }
-    
-    Context "When the hashtables are not equal and have different keys" {
-        BeforeAll {
-            $script:result = Join-Hashtable -Hashtable1 @{ key1 = "value1" } -Hashtable2 @{ key2 = "value2" }
-        }
-        
-        It "It should return a hashtable with values from both input hashtables" {
-            $result | Should -BeOfType [hashtable]
-            $result.Keys | Should -HaveCount 2
-            $result.key1 | Should -Be "value1"
-            $result.key2 | Should -Be "value2"
+            $result.Keys | Should -HaveCount $ExpectedCount
+            
+            foreach ($key in $ExpectedValues.Keys) {
+                $result[$key] | Should -Be $ExpectedValues[$key]
+            }
         }
     }
     
-    Context "When the hashtables are not equal and have the same key but different values" {
-        BeforeAll {
-            $script:result = Join-Hashtable -Hashtable1 @{ key1 = "value1" } -Hashtable2 @{ key1 = "value2" }
-        }
-
-        It "It should return a hashtable with values from the second input hashtable" {
-            $result | Should -BeOfType [hashtable]
-            $result.Keys | Should -HaveCount 1
-            $result.key1 | Should -Be "value2"
-        }
-    }
-    
-    Context "When the hashtables are nested" {
-        BeforeAll {
-            $script:result = Join-Hashtable `
-                -Hashtable1 @{
+    Context "Nested hashtable operations" {
+        It "Should properly merge nested hashtables" {
+            $hash1 = @{
                 key1 = "value1"
                 key2 = @{
                     subKey1 = "subValue1"
                     subKey2 = "subValue2"
                     subKey3 = "subValue3"
                 }
-            } `
-                -Hashtable2 @{
+            }
+            
+            $hash2 = @{
                 key1 = "value2"
                 key2 = @{
                     subKey1 = "subValue1"
@@ -96,16 +82,22 @@ Describe "Join-HashTable" {
                     subKey1 = "subValue1"
                 }
             }
-        }
-
-        It "It should return a deep merged hashtable" {
+            
+            $result = Join-Hashtable -Hashtable1 $hash1 -Hashtable2 $hash2
+            
+            # Verify structure
             $result | Should -BeOfType [hashtable]
-            $result.key1.Keys | Should -HaveCount 1
+            $result.Keys | Should -HaveCount 3
+            
+            # Verify top-level values
             $result.key1 | Should -Be "value2"
+            
+            # Verify nested structures
             $result.key2.Keys | Should -HaveCount 3
             $result.key2.subKey1 | Should -Be "subValue1"
             $result.key2.subKey2 | Should -Be "otherValue"
             $result.key2.subKey3 | Should -Be "subValue3"
+            
             $result.key3.Keys | Should -HaveCount 1
             $result.key3.subKey1 | Should -Be "subValue1"
         }

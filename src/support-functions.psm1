@@ -402,38 +402,104 @@ function Join-HashTable {
 
 function Remove-BicepComments {
     param ([string]$Content)
+    $resultLines = @()
 
     # Normalize line endings to Unix style for consistency
     $Content = $Content -replace "`r`n", "`n"
 
-    # Preserve strings before removing comments (ensuring single-line strings only)
-    $stringPattern = "'[^'\r\n]*'"
-    $strings = @{}
-    $Content = $Content -replace $stringPattern, {
-        $key = "__STRING$($strings.Count)__"
-        $strings[$key] = $_
-        return $key
-    }
-
-    # Remove comments
-    $Content = $Content -replace "//.*", ""  # Single-line comments
-    $Content = $Content -replace "/\*[\s\S]*?\*/", ""  # Multi-line comments (non-greedy)
-
-    # Restore strings
-    foreach ($key in $strings.Keys) {
-        $Content = $Content -replace [regex]::Escape($key), $strings[$key]
-    }
-
-    # Replace multiple blank lines with a single blank line outside of strings
-    $Content = $Content -replace "(\n{2,})", "`n`n"
+    $lines = $Content -split "`n"
     
-    # Trim trailing whitespace on each line
-    $Content = ($Content -split "`n" | ForEach-Object { $_.TrimEnd() }) -join "`n"
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        
+        # Skip empty or whitespace-only lines
+        if ($line -match "^\s*$") {
+            continue
+        }
 
-    # Remove leading and trailing blank lines
-    $Content = $Content -replace "^\s*\n+|\n+\s*$", ""
+        # Iterate through characters in the line
+        for ($j = 0; $j -lt $line.Length; $j++) {
+            $char = $line[$j]
 
-    return $Content
+            if ($char -eq "'") {
+                # Check if the quote is escaped (preceded by an odd number of backslashes)
+                $escapeCount = 0
+                $prevIndex = $j - 1
+                while ($prevIndex -ge 0 -and $line[$prevIndex] -eq "\") {
+                    $escapeCount++
+                    $prevIndex--
+                }
+                
+                if ($escapeCount % 2 -eq 0) {
+                    # Entering a string literal
+                    $j++
+                    while ($j -lt $line.Length) {
+                        $char = $line[$j]
+                        
+                        # Check for unescaped closing quote
+                        $escapeCount = 0
+                        $prevIndex = $j - 1
+                        while ($prevIndex -ge 0 -and $line[$prevIndex] -eq "\") {
+                            $escapeCount++
+                            $prevIndex--
+                        }
+            
+                        if ($char -eq "'" -and $escapeCount % 2 -eq 0) {
+                            # String literal ends
+                            break
+                        }
+                        $j++
+                    }
+                }
+            }
+            elseif ($char -eq "/") {
+                # Check for single-line comment (//)
+                if ($j -lt $line.Length - 1 -and $line[$j + 1] -eq "/") {
+                    $line = $line.Substring(0, $j).TrimEnd()
+                    break
+                }
+                # Check for multi-line comment (/* ... */)
+                elseif ($j -lt $line.Length - 1 -and $line[$j + 1] -eq "*") {
+                    $prefixBeforeComment = $line.Substring(0, $j)
+                    $remainingLine = $line.Substring($j)
+
+                    $multilineEndMatch = $null
+                    while ($i -lt $lines.Count) {
+                        $multilineEndMatch = [regex]::Match($remainingLine, "\*/")
+
+                        if ($multilineEndMatch.Success) {
+                            # Comment ends within this line
+                            $line = $prefixBeforeComment + $remainingLine.Substring($multilineEndMatch.Index + 2)
+                            # Reset j to continue checking for more comments
+                            $j = $prefixBeforeComment.Length - 1
+                            break
+                        }
+                        else {
+                            # Comment spans multiple lines, continue reading
+                            $i++
+                            if ($i -lt $lines.Count) {
+                                $remainingLine += "`n" + $lines[$i]
+                            }
+                        }
+                    }
+
+                    # If comment never closed, discard everything after `/*`
+                    if (-not $multilineEndMatch.Success) {
+                        $line = $prefixBeforeComment.TrimEnd()
+                        break
+                    }
+                    continue
+                }
+            }
+        }
+
+        # Skip adding empty lines to result
+        if ($line -match "^\s*$") { continue }
+
+        $resultLines += $line.TrimEnd()
+    }
+
+    return $resultLines -join "`n"
 }
 
 function Get-ClimprConfig {
