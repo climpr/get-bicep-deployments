@@ -42,7 +42,7 @@ Describe "Resolve-DeploymentConfig" {
         $script:defaultDeploymentConfig = [ordered]@{
             '$schema'         = "https://raw.githubusercontent.com/climpr/climpr-schemas/main/schemas/v1.0.0/bicep-deployment/deploymentconfig.json#"
             'location'        = "westeurope"
-            'azureCliVersion' = "2.70.0"
+            'azureCliVersion' = "latest"
         }
         $defaultDeploymentConfig | ConvertTo-Json | Out-File -FilePath $defaultDeploymentConfigPath
 

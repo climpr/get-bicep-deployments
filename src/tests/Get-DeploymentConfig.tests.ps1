@@ -36,7 +36,7 @@ Describe "Get-DeploymentConfig" {
         New-FileStructure -Path $testRoot -Structure @{
             'default.deploymentconfig.jsonc' = @{
                 name            = "default-name"
-                azureCliVersion = "2.70.0"
+                azureCliVersion = "latest"
                 location        = "westeurope"
             } | ConvertTo-Json
         }
