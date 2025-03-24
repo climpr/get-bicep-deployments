@@ -2,7 +2,7 @@ BeforeAll {
     if ((Get-PSResourceRepository -Name PSGallery).Trusted -eq $false) {
         Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$false
     }
-    if ((Get-PSResource -Name Bicep -ErrorAction Ignore).Version -lt "2.7.0") {
+    if ((Get-PSResource -Name Bicep -ErrorAction Ignore).Version -lt "2.8.0") {
         Install-PSResource -Name Bicep
     }
     Import-Module $PSScriptRoot/../DeployBicepHelpers.psm1 -Force
@@ -42,7 +42,7 @@ Describe "Resolve-DeploymentConfig" {
         $script:defaultDeploymentConfig = [ordered]@{
             '$schema'         = "https://raw.githubusercontent.com/climpr/climpr-schemas/main/schemas/v1.0.0/bicep-deployment/deploymentconfig.json#"
             'location'        = "westeurope"
-            'azureCliVersion' = "2.68.0"
+            'azureCliVersion' = "2.70.0"
         }
         $defaultDeploymentConfig | ConvertTo-Json | Out-File -FilePath $defaultDeploymentConfigPath
 
