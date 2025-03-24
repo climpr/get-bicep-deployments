@@ -1,62 +1,51 @@
 BeforeAll {
-    Import-Module $PSScriptRoot/../support-functions.psm1 -Force
-    
-    # Create test root directory
-    $script:testRoot = Join-Path $TestDrive 'mock'
-    New-Item -Path $testRoot -ItemType Directory -Force | Out-Null
-
-    # Set up common parameters
-    $script:deploymentsRootDirectory = Join-Path -Path $testRoot -ChildPath "deployments"
-    $script:commonParams = @{
-        Quiet                    = $true
-        DeploymentsRootDirectory = $deploymentsRootDirectory
-    }
+    Import-Module $PSScriptRoot/../DeployBicepHelpers.psm1 -Force
 
     function New-FileStructure {
         param (
             [Parameter(Mandatory)]
             [string] $Path,
-            
+
             [Parameter(Mandatory)]
-            [System.Collections.IDictionary] $Deployments
+            [hashtable] $Structure
         )
-    
-        # Create root directory if it doesn't exist
+        
         if (!(Test-Path -Path $Path)) {
             New-Item -Path $Path -ItemType Directory -Force | Out-Null
         }
     
-        foreach ($key in $Deployments.Keys) {
+        foreach ($key in $Structure.Keys) {
             $itemPath = Join-Path -Path $Path -ChildPath $key
-            
-            if ($Deployments[$key] -is [System.Collections.IDictionary]) {
-                # If value is hashtable, recurse into new directory
-                New-FileStructure -Path $itemPath -Deployments $Deployments[$key]
+            if ($Structure[$key] -is [hashtable]) {
+                New-FileStructure -Path $itemPath -Structure $Structure[$key]
             }
             else {
-                # If value is string, create file with content
-                Set-Content -Path $itemPath -Value $Deployments[$key] -Force
+                Set-Content -Path $itemPath -Value $Structure[$key] -Force
             }
         }
     }
 }
 
-AfterAll {
-    Remove-Item -Path $testRoot -Recurse -Force -ErrorAction SilentlyContinue -ProgressAction Ignore
-}
-
-Describe "Get-BicepDeployments.ps1" {
+Describe "Get-BicepDeployments" {
     BeforeEach {
-        New-Item -Path $deploymentsRootDirectory -ItemType Directory -Force | Out-Null
+        # Create mock root directory
+        $script:testRoot = Join-Path $TestDrive 'mock'
+        New-Item -Path $testRoot -ItemType Directory -Force | Out-Null
+        
+        # Set up common parameters
+        $script:commonParams = @{
+            Quiet                    = $true
+            DeploymentsRootDirectory = $testRoot
+        }
     }
 
     AfterEach {
-        Remove-Item -Path $deploymentsRootDirectory -Recurse -Force -ErrorAction SilentlyContinue -ProgressAction Ignore
+        Remove-Item -Path $testRoot -Recurse -Force -ErrorAction SilentlyContinue -ProgressAction SilentlyContinue
     }
 
     Context "When mode is 'Modified'" {
         It "Should handle <scenario> correctly" -TestCases @(
-            # No files modified
+            # # No files modified
             @{
                 scenario     = "no files modified"
                 changedFiles = @()
@@ -139,25 +128,25 @@ Describe "Get-BicepDeployments.ps1" {
             param ($changedFiles, $expected, $mock)
 
             # Create mock deployments
-            New-FileStructure -Path $deploymentsRootDirectory -Deployments $mock
-
+            New-FileStructure -Path $testRoot -Structure $mock
+            
             # Resolve relative paths
-            $changedFiles = $changedFiles | ForEach-Object { Resolve-Path -Path (Join-Path $deploymentsRootDirectory $_) -Relative }
+            $changedFiles = $changedFiles | ForEach-Object { Resolve-Path -Path (Join-Path $testRoot $_) -Relative }
 
             # Run script
-            $res = ./src/Get-BicepDeployments.ps1 @commonParams -EventName "push" -Mode "Modified" -ChangedFiles $changedFiles
+            $result = Get-BicepDeployments @commonParams -EventName "push" -Mode "Modified" -ChangedFiles $changedFiles
 
             # Assert
-            $res -is [System.Object[]] | Should -BeTrue
-            $res | Should -HaveCount $expected.Length
-            $res.Name | Should -Be $expected
+            $result -is [System.Object[]] | Should -BeTrue
+            $result | Should -HaveCount $expected.Length
+            $result.Name | Should -BeExactly $expected
         }
     }
 
     Context "When 'Environment' filter is applied" {
         It "Should return only the environment specific deployments" {
             # Create mock deployments
-            New-FileStructure -Path $deploymentsRootDirectory -Deployments @{
+            New-FileStructure -Path $testRoot -Structure @{
                 'deployment-1' = @{
                     'main.bicep'     = "targetScope = 'subscription'"
                     'dev.bicepparam' = "using 'main.bicep'"
@@ -174,19 +163,19 @@ Describe "Get-BicepDeployments.ps1" {
             }
 
             # Run script
-            $res = ./src/Get-BicepDeployments.ps1 @commonParams -EventName "workflow_dispatch" -Mode "All" -Environment "prod"
+            $result = Get-BicepDeployments @commonParams -EventName "workflow_dispatch" -Mode "All" -Environment "prod"
 
             # Assert
-            $res -is [System.Object[]] | Should -BeTrue
-            $res | Should -HaveCount 2
-            $res.Name | Should -Be @("deployment-2-prod", "deployment-3-prod")
+            $result -is [System.Object[]] | Should -BeTrue
+            $result | Should -HaveCount 2
+            $result.Name | Should -BeExactly @("deployment-2-prod", "deployment-3-prod")
         }
     }
 
     Context "When mode is 'All'" {
         It "Should return all deployments" {
             # Create mock deployments
-            New-FileStructure -Path $deploymentsRootDirectory -Deployments @{
+            New-FileStructure -Path $testRoot -Structure @{
                 'deployment-1' = @{
                     'main.bicep'     = "targetScope = 'subscription'"
                     'dev.bicepparam' = "using 'main.bicep'"
@@ -203,12 +192,12 @@ Describe "Get-BicepDeployments.ps1" {
             }
 
             # Run script
-            $res = ./src/Get-BicepDeployments.ps1 @commonParams -EventName "schedule" -Mode "All"
+            $result = Get-BicepDeployments @commonParams -EventName "schedule" -Mode "All"
 
             # Assert
-            $res -is [System.Object[]] | Should -BeTrue
-            $res | Should -HaveCount 4
-            $res.Name | Should -Be @("deployment-1-dev", "deployment-2-dev", "deployment-2-prod", "deployment-3-prod")
+            $result -is [System.Object[]] | Should -BeTrue
+            $result | Should -HaveCount 4
+            $result.Name | Should -BeExactly @("deployment-1-dev", "deployment-2-dev", "deployment-2-prod", "deployment-3-prod")
         }
     }
 
@@ -216,7 +205,7 @@ Describe "Get-BicepDeployments.ps1" {
         Context "And no 'Environment' filter is applied" {
             It "Should return only the deployments matching the pattern" {
                 # Create mock deployments
-                New-FileStructure -Path $deploymentsRootDirectory -Deployments @{
+                New-FileStructure -Path $testRoot -Structure @{
                     'deployment-1' = @{
                         'main.bicep'     = "targetScope = 'subscription'"
                         'dev.bicepparam' = "using 'main.bicep'"
@@ -229,18 +218,18 @@ Describe "Get-BicepDeployments.ps1" {
                 }
                 
                 # Run script
-                $res = ./src/Get-BicepDeployments.ps1 @commonParams -EventName "workflow_dispatch" -Mode "All" -Pattern "deployment-2"
+                $result = Get-BicepDeployments @commonParams -EventName "workflow_dispatch" -Mode "All" -Pattern "deployment-2"
                 
                 # Assert
-                $res -is [System.Object[]] | Should -BeTrue
-                $res | Should -HaveCount 2
-                $res.Name | Should -Be @("deployment-2-dev", "deployment-2-prod")
+                $result -is [System.Object[]] | Should -BeTrue
+                $result | Should -HaveCount 2
+                $result.Name | Should -BeExactly @("deployment-2-dev", "deployment-2-prod")
             }
         }
         Context "And 'Environment' filter is applied" {
             It "Should return only the deployments matching the pattern and environment" {
                 # Create mock deployments
-                New-FileStructure -Path $deploymentsRootDirectory -Deployments @{
+                New-FileStructure -Path $testRoot -Structure @{
                     'deployment-1' = @{
                         'main.bicep'     = "targetScope = 'subscription'"
                         'dev.bicepparam' = "using 'main.bicep'"
@@ -253,12 +242,12 @@ Describe "Get-BicepDeployments.ps1" {
                 }
                 
                 # Run script
-                $res = ./src/Get-BicepDeployments.ps1 @commonParams -EventName "workflow_dispatch" -Mode "All" -Pattern "deployment-2" -Environment "prod"
+                $result = Get-BicepDeployments @commonParams -EventName "workflow_dispatch" -Mode "All" -Pattern "deployment-2" -Environment "prod"
                 
                 # Assert
-                $res -is [System.Object[]] | Should -BeTrue
-                $res | Should -HaveCount 1
-                $res.Name | Should -Be @("deployment-2-prod")
+                $result -is [System.Object[]] | Should -BeTrue
+                $result | Should -HaveCount 1
+                $result.Name | Should -BeExactly @("deployment-2-prod")
             }
         }
     }

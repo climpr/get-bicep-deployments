@@ -5,34 +5,31 @@ BeforeAll {
     if ((Get-PSResource -Name Bicep -ErrorAction Ignore).Version -lt "2.7.0") {
         Install-PSResource -Name Bicep
     }
-    Import-Module $PSScriptRoot/../support-functions.psm1 -Force
+    Import-Module $PSScriptRoot/../DeployBicepHelpers.psm1 -Force
 }
 
 Describe "Resolve-ParameterFileTarget" {
-    BeforeAll {
-        $script:testRoot = Join-Path $TestDrive 'test'
-        New-Item -Path $testRoot -ItemType Directory -Force | Out-Null
-    }
-
     Context "Input handling" {
         Context "When the input is a file path" {
             BeforeAll {
+                $script:testRoot = Join-Path $TestDrive 'mock'
                 $script:paramFile = Join-Path $testRoot "test.bicepparam"
-                "using 'main.bicep'" | Out-File -Path $paramFile
-            }
-
-            It "It should return 'main.bicep'" {
-                Resolve-ParameterFileTarget -Path $paramFile | Should -Be "main.bicep"
+                New-Item -Path $testRoot -ItemType Directory -Force | Out-Null
             }
 
             AfterAll {
-                Remove-Item -Path $paramFile -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path $testRoot -Recurse -Force -ErrorAction SilentlyContinue -ProgressAction SilentlyContinue
+            }
+
+            It "It should return 'main.bicep'" {
+                "using 'main.bicep'" | Out-File -Path $paramFile
+                Resolve-ParameterFileTarget -Path $paramFile | Should -BeExactly "main.bicep"
             }
         }
 
         Context "When the input is a string" {
             It "It should return 'main.bicep'" {
-                Resolve-ParameterFileTarget -Content "using 'main.bicep'" | Should -Be "main.bicep"
+                Resolve-ParameterFileTarget -Content "using 'main.bicep'" | Should -BeExactly "main.bicep"
             }
         }
     }
@@ -61,7 +58,7 @@ Describe "Resolve-ParameterFileTarget" {
             }
         ) {
             param ($Content, $Expected)
-            Resolve-ParameterFileTarget -Content $Content | Should -Be $Expected
+            Resolve-ParameterFileTarget -Content $Content | Should -BeExactly $Expected
         }
     }
 
@@ -89,7 +86,7 @@ Describe "Resolve-ParameterFileTarget" {
             }
         ) {
             param ($Content, $Expected)
-            Resolve-ParameterFileTarget -Content $Content | Should -Be $Expected
+            Resolve-ParameterFileTarget -Content $Content | Should -BeExactly $Expected
         }
     }
 
@@ -101,7 +98,7 @@ Describe "Resolve-ParameterFileTarget" {
 
         foreach ($testCase in $paths) {
             Resolve-ParameterFileTarget -Content "using '$($testCase.Path)'" | 
-            Should -Be $testCase.Expected
+            Should -BeExactly $testCase.Expected
         }
     }
 
@@ -117,10 +114,6 @@ Context "Position handling" {
 metadata author = 'author'
 using 'main.bicep'
 "@
-        Resolve-ParameterFileTarget -Content $content | Should -Be 'main.bicep'
+        Resolve-ParameterFileTarget -Content $content | Should -BeExactly 'main.bicep'
     }
-}
-
-AfterAll {
-    Remove-Item -Path $testRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

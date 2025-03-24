@@ -1,92 +1,127 @@
-@{ SuiteName = 'Get-ClimprConfig Tests' }
-
 BeforeAll {
-    Import-Module $PSScriptRoot/../support-functions.psm1 -Force
+    Import-Module $PSScriptRoot/../DeployBicepHelpers.psm1 -Force
+
+    function New-FileStructure {
+        param (
+            [Parameter(Mandatory)]
+            [string] $Path,
+
+            [Parameter(Mandatory)]
+            [hashtable] $Structure
+        )
+        
+        if (!(Test-Path -Path $Path)) {
+            New-Item -Path $Path -ItemType Directory -Force | Out-Null
+        }
+    
+        foreach ($key in $Structure.Keys) {
+            $itemPath = Join-Path -Path $Path -ChildPath $key
+            if ($Structure[$key] -is [hashtable]) {
+                New-FileStructure -Path $itemPath -Structure $Structure[$key]
+            }
+            else {
+                Set-Content -Path $itemPath -Value $Structure[$key] -Force
+            }
+        }
+    }
 }
 
 Describe "Get-ClimprConfig" {
-    BeforeAll {
-        $script:testRoot = Join-Path $TestDrive 'ClimprConfigTest'
-        $script:subDir = Join-Path $testRoot 'SubDir'
-        
-        # Create test directories
-        New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
-        New-Item -ItemType Directory -Path $subDir -Force | Out-Null
+    BeforeEach {
+        # Create mock root directory
+        $script:testRoot = Join-Path $TestDrive 'mock'
+        New-Item -Path $testRoot -ItemType Directory -Force | Out-Null
+    }
+
+    AfterEach {
+        Remove-Item -Path $testRoot -Recurse -Force -ErrorAction SilentlyContinue -ProgressAction SilentlyContinue
     }
 
     Context "Basic configuration handling" {
-        BeforeEach {
-            # Create test config files
-            $config1 = @{ SettingA = "Value1" } | ConvertTo-Json -Depth 10
-            $config2 = @{ SettingB = "Value2" } | ConvertTo-Json -Depth 10
-            Set-Content -Path (Join-Path $testRoot "climprconfig.json") -Value $config1
-            Set-Content -Path (Join-Path $subDir "climprconfig.jsonc") -Value $config2
+        It "Should find configuration with .json extension" {
+            New-FileStructure -Path $testRoot -Structure @{
+                "climprconfig.json" = @{ setting = "value" } | ConvertTo-Json
+            }
+            Get-ClimprConfig -DeploymentDirectoryPath $testRoot | Select-Object -ExpandProperty "setting" | Should -BeExactly "value"
         }
 
-        It "Should find and merge configurations from multiple directories" {
-            $result = Get-ClimprConfig -DeploymentDirectoryPath $subDir
-            
-            $result | Should -BeOfType Hashtable
-            $result.Keys | Should -Contain "SettingA"
-            $result.Keys | Should -Contain "SettingB"
-            $result["SettingA"] | Should -Be "Value1"
-            $result["SettingB"] | Should -Be "Value2"
+        It "Should find configuration with .jsonc extension" {
+            New-FileStructure -Path $testRoot -Structure @{
+                "climprconfig.jsonc" = @{ setting = "value" } | ConvertTo-Json
+            }
+            Get-ClimprConfig -DeploymentDirectoryPath $testRoot | Select-Object -ExpandProperty "setting" | Should -BeExactly "value"
         }
 
         It "Should return an empty hashtable if no config files exist" {
-            $emptyDir = Join-Path $TestDrive "EmptyDir"
-            New-Item -ItemType Directory -Path $emptyDir -Force | Out-Null
-            
-            $result = Get-ClimprConfig -DeploymentDirectoryPath $emptyDir
+            $result = Get-ClimprConfig -DeploymentDirectoryPath $testRoot
             
             $result | Should -BeOfType Hashtable
-            $result.Keys.Count | Should -Be 0
+            $result.Keys.Count | Should -BeExactly 0
+        }
+
+        It "Should find configuration from current directory" {
+            New-FileStructure -Path $testRoot -Structure @{
+                "climprconfig.jsonc" = @{ setting = "value" } | ConvertTo-Json
+            }
+            Get-ClimprConfig -DeploymentDirectoryPath $testRoot | Select-Object -ExpandProperty "setting" | Should -BeExactly "value"
+        }
+
+        It "Should find configuration from parent directory" {
+            New-FileStructure -Path $testRoot -Structure @{
+                "climprconfig.jsonc" = @{ setting = "value" } | ConvertTo-Json
+                "subdir"             = @{}
+            }
+            Get-ClimprConfig -DeploymentDirectoryPath "$testRoot/subdir" | Select-Object -ExpandProperty "setting" | Should -BeExactly "value"
+        }
+
+        It "Should merge configurations from current and parent directories" {
+            New-FileStructure -Path $testRoot -Structure @{
+                "climprconfig.jsonc" = @{ SettingA = "Value1" } | ConvertTo-Json
+                "subdir"             = @{
+                    "climprconfig.jsonc" = @{ SettingB = "Value2" } | ConvertTo-Json
+                }
+            }
+            $result = Get-ClimprConfig -DeploymentDirectoryPath "$testRoot/subdir"
+            
+            $result.Keys | Should -Contain "SettingA"
+            $result.Keys | Should -Contain "SettingB"
+            $result["SettingA"] | Should -BeExactly "Value1"
+            $result["SettingB"] | Should -BeExactly "Value2"
         }
     }
 
     Context "Configuration precedence" {
         It "Should prioritize jsonc over json when both exist" {
-            $config1 = @{ SettingA = "Value1" } | ConvertTo-Json -Depth 10
-            $config2 = @{ SettingA = "OverriddenValue" } | ConvertTo-Json -Depth 10
-            
-            Set-Content -Path (Join-Path $subDir "climprconfig.json") -Value $config1
-            Set-Content -Path (Join-Path $subDir "climprconfig.jsonc") -Value $config2
-
-            $result = Get-ClimprConfig -DeploymentDirectoryPath $subDir
-            $result["SettingA"] | Should -Be "OverriddenValue"
+            New-FileStructure -Path $testRoot -Structure @{
+                "climprconfig.json"  = @{ setting = "value" } | ConvertTo-Json
+                "climprconfig.jsonc" = @{ setting = "overridden" } | ConvertTo-Json
+            }
+            Get-ClimprConfig -DeploymentDirectoryPath $testRoot | Select-Object -ExpandProperty "setting" | Should -BeExactly "overridden"
         }
 
         It "Should prioritize child directory config over parent" {
-            $parentConfig = @{ SettingA = "ParentValue" } | ConvertTo-Json -Depth 10
-            $childConfig = @{ SettingA = "ChildValue" } | ConvertTo-Json -Depth 10
-            
-            Set-Content -Path (Join-Path $testRoot "climprconfig.json") -Value $parentConfig
-            Set-Content -Path (Join-Path $subDir "climprconfig.json") -Value $childConfig
-
-            $result = Get-ClimprConfig -DeploymentDirectoryPath $subDir
-            $result["SettingA"] | Should -Be "ChildValue"
+            New-FileStructure -Path $testRoot -Structure @{
+                "climprconfig.jsonc" = @{ setting = "parentvalue" } | ConvertTo-Json
+                "subdir"             = @{
+                    "climprconfig.jsonc" = @{ setting = "childvalue" } | ConvertTo-Json
+                }
+            }
+            Get-ClimprConfig -DeploymentDirectoryPath "$testRoot/subdir" | Select-Object -ExpandProperty "setting" | Should -BeExactly "childvalue"
         }
     }
 
     Context "Error handling" {
         It "Should fail on non-existent directory" {
-            $nonExistentDir = Join-Path $TestDrive "DoesNotExist"
+            $nonExistentDir = Join-Path $testRoot "DoesNotExist"
             { Get-ClimprConfig -DeploymentDirectoryPath $nonExistentDir } | 
             Should -Throw "Cannot validate argument on parameter 'DeploymentDirectoryPath'*"
         }
 
         It "Should handle malformed JSON gracefully" {
-            Set-Content -Path (Join-Path $subDir "climprconfig.json") -Value "{ invalid json }"
-            
-            { Get-ClimprConfig -DeploymentDirectoryPath $subDir } | Should -Not -Throw
+            New-FileStructure -Path $testRoot -Structure @{
+                "climprconfig.jsonc" = "{ invalid json }"
+            }
+            { Get-ClimprConfig -DeploymentDirectoryPath $testRoot -WarningAction Ignore } | Should -Not -Throw
         }
-    }
-
-    AfterEach {
-        Get-ChildItem -Path $testRoot -Filter "climprconfig.*" -Recurse | Remove-Item -Force
-    }
-
-    AfterAll {
-        Remove-Item -Recurse -Force $testRoot -ErrorAction SilentlyContinue
     }
 }

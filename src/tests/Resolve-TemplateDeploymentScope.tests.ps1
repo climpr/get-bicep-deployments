@@ -1,129 +1,138 @@
 BeforeAll {
-    Import-Module $PSScriptRoot/../support-functions.psm1 -Force
+    Import-Module $PSScriptRoot/../DeployBicepHelpers.psm1 -Force
+
+    function New-FileStructure {
+        param (
+            [Parameter(Mandatory)]
+            [string] $Path,
+
+            [Parameter(Mandatory)]
+            [hashtable] $Structure
+        )
+    
+        if (!(Test-Path -Path $Path)) {
+            New-Item -Path $Path -ItemType Directory -Force | Out-Null
+        }
+
+        foreach ($key in $Structure.Keys) {
+            $itemPath = Join-Path -Path $Path -ChildPath $key
+            if ($Structure[$key] -is [hashtable]) {
+                New-FileStructure -Path $itemPath -Structure $Structure[$key]
+            }
+            else {
+                Set-Content -Path $itemPath -Value $Structure[$key] -Force
+            }
+        }
+    }
 }
 
 Describe "Resolve-TemplateDeploymentScope" {
-    BeforeAll {
-        $script:testRoot = Join-Path ([System.IO.Path]::GetTempPath()) 'test'
+    BeforeEach {
+        # Create mock root directory
+        $script:testRoot = Join-Path $TestDrive 'mock'
         New-Item -Path $testRoot -ItemType Directory -Force | Out-Null
     }
 
-    BeforeEach {
-        $script:bicepFile = Join-Path $testRoot 'main.bicep'
-        $script:parameterFile = Join-Path $testRoot 'main.bicepparam'
-    }
-
     AfterEach {
-        Remove-Item -Path $bicepFile -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path $parameterFile -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path $testRoot -Recurse -Force -ErrorAction SilentlyContinue -ProgressAction SilentlyContinue
     }
 
     Context "Local template scope resolution" {
-        It "Should resolve <Expected> scope" -TestCases @(
+        It "Should resolve <expected> scope" -TestCases @(
             @{
-                BicepContent = "param location string = 'westeurope'"
-                Config       = @{ resourceGroupName = 'mockResourceGroup' }
-                Expected     = 'resourceGroup'
+                content  = ""
+                config   = @{ resourceGroupName = 'mock-rg' }
+                expected = 'resourceGroup'
             }
             @{
-                BicepContent = "targetScope = 'subscription'`nparam location string = 'westeurope'"
-                Config       = @{}
-                Expected     = 'subscription'
+                content  = "targetScope = 'resourceGroup'"
+                config   = @{ resourceGroupName = 'mock-rg' }
+                expected = 'resourceGroup'
             }
             @{
-                BicepContent = "targetScope = 'managementGroup'`nparam location string = 'westeurope'"
-                Config       = @{ managementGroupId = 'mockManagementGroup' }
-                Expected     = 'managementGroup'
+                content  = "targetScope = 'subscription'"
+                config   = @{}
+                expected = 'subscription'
             }
             @{
-                BicepContent = "targetScope = 'tenant'`nparam location string = 'westeurope'"
-                Config       = @{}
-                Expected     = 'tenant'
+                content  = "targetScope = 'managementGroup'"
+                config   = @{ managementGroupId = 'mock-mg' }
+                expected = 'managementGroup'
+            }
+            @{
+                content  = "targetScope = 'tenant'"
+                config   = @{}
+                expected = 'tenant'
             }
         ) {
-            param($BicepContent, $Config, $Expected)
+            param($content, $config, $expected)
             
-            Set-Content -Path $bicepFile -Value $BicepContent
-            Set-Content -Path $parameterFile -Value "using 'main.bicep'"
-
-            $params = @{
-                DeploymentFilePath = $parameterFile
-                DeploymentConfig   = $Config
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep'      = $content
+                'prod.bicepparam' = "using 'main.bicep'"
             }
 
-            $templateDeploymentScope = Resolve-TemplateDeploymentScope @params
-            $templateDeploymentScope | Should -Be $Expected
+            Resolve-TemplateDeploymentScope -DeploymentFilePath "$testRoot/prod.bicepparam" -DeploymentConfig $config
+            | Should -BeExactly $expected
         }
     }
 
     Context "DeploymentConfig validation" {
-        It "Should throw when <Scope> scope is specified without <Required> in deploymentconfig.jsonc" -TestCases @(
+        It "Should throw when <scope> scope is specified without <required> in deploymentconfig.jsonc" -TestCases @(
             @{
-                Scope         = 'resourceGroup'
-                BicepContent  = "param location string = 'westeurope'"
-                Required      = 'resourceGroupName'
-                ExpectedError = "*Target scope is resourceGroup, but resourceGroupName property is not present*"
+                scope         = 'resourceGroup'
+                content       = ""
+                required      = 'resourceGroupName'
+                expectedError = "*Target scope is resourceGroup, but resourceGroupName property is not present*"
             }
             @{
-                Scope         = 'managementGroup'
-                BicepContent  = "targetScope = 'managementGroup'`nparam location string = 'westeurope'"
-                Required      = 'managementGroupId'
-                ExpectedError = "*Target scope is managementGroup, but managementGroupId property is not present*"
+                scope         = 'managementGroup'
+                content       = "targetScope = 'managementGroup'"
+                required      = 'managementGroupId'
+                expectedError = "*Target scope is managementGroup, but managementGroupId property is not present*"
             }
         ) {
-            param($BicepContent, $ExpectedError)
+            param($content, $expectedError)
 
-            Set-Content -Path $bicepFile -Value $BicepContent
-            Set-Content -Path $parameterFile -Value "using 'main.bicep'"
-
-            $params = @{
-                DeploymentFilePath = $parameterFile
-                DeploymentConfig   = @{}
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep'      = $content
+                'prod.bicepparam' = "using 'main.bicep'"
             }
 
-            { Resolve-TemplateDeploymentScope @params } | Should -Throw $ExpectedError
+            { Resolve-TemplateDeploymentScope -DeploymentFilePath "$testRoot/prod.bicepparam" -DeploymentConfig @{} } | Should -Throw $expectedError
         }
     }
 
     Context "Keyword position validation" {
         It "Should resolve subscription scope" {
-            "metadata author = 'author'`ntargetScope = 'subscription'" | Set-Content -Path $bicepFile
-            "metadata author = 'author'`nusing 'main.bicep'" | Set-Content -Path $parameterFile
-
-            $params = @{
-                DeploymentFilePath = $parameterFile
-                DeploymentConfig   = @{}
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep'      = "metadata author = 'author'`ntargetScope = 'subscription'"
+                'prod.bicepparam' = "metadata author = 'author'`nusing 'main.bicep'"
             }
 
-            $templateDeploymentScope = Resolve-TemplateDeploymentScope @params
-            $templateDeploymentScope | Should -Be 'subscription'
+            Resolve-TemplateDeploymentScope -DeploymentFilePath "$testRoot/prod.bicepparam" -DeploymentConfig @{}
+            | Should -BeExactly 'subscription'
         }
     }
 
     Context "Input file types" {
         It "Should resolve subscription scope for .bicep file" {
-            "targetScope = 'subscription'" | Set-Content -Path $bicepFile
-            
-            $params = @{
-                DeploymentFilePath = $bicepFile
-                DeploymentConfig   = @{}
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep' = "targetScope = 'subscription'"
             }
-            
-            $templateDeploymentScope = Resolve-TemplateDeploymentScope @params
-            $templateDeploymentScope | Should -Be 'subscription'
+
+            Resolve-TemplateDeploymentScope -DeploymentFilePath "$testRoot/main.bicep" -DeploymentConfig @{}
+            | Should -BeExactly 'subscription'
         }
         
         It "Should resolve subscription scope for .bicepparam file" {
-            "targetScope = 'subscription'" | Set-Content -Path $bicepFile
-            "using 'main.bicep'" | Set-Content -Path $parameterFile
-
-            $params = @{
-                DeploymentFilePath = $parameterFile
-                DeploymentConfig   = @{}
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep'      = "metadata author = 'author'`ntargetScope = 'subscription'"
+                'prod.bicepparam' = "metadata author = 'author'`nusing 'main.bicep'"
             }
 
-            $templateDeploymentScope = Resolve-TemplateDeploymentScope @params
-            $templateDeploymentScope | Should -Be 'subscription'
+            Resolve-TemplateDeploymentScope -DeploymentFilePath "$testRoot/prod.bicepparam" -DeploymentConfig @{}
+            | Should -BeExactly 'subscription'
         }
     }
 }

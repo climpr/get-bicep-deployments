@@ -1,123 +1,126 @@
 BeforeAll {
-    Import-Module $PSScriptRoot/../support-functions.psm1 -Force
+    Import-Module $PSScriptRoot/../DeployBicepHelpers.psm1 -Force
+
+    function New-FileStructure {
+        param (
+            [Parameter(Mandatory)]
+            [string] $Path,
+
+            [Parameter(Mandatory)]
+            [hashtable] $Structure
+        )
+        
+        if (!(Test-Path -Path $Path)) {
+            New-Item -Path $Path -ItemType Directory -Force | Out-Null
+        }
+    
+        foreach ($key in $Structure.Keys) {
+            $itemPath = Join-Path -Path $Path -ChildPath $key
+            if ($Structure[$key] -is [hashtable]) {
+                New-FileStructure -Path $itemPath -Structure $Structure[$key]
+            }
+            else {
+                Set-Content -Path $itemPath -Value $Structure[$key] -Force
+            }
+        }
+    }
 }
 
 Describe "Get-DeploymentConfig" {
-    BeforeAll {
-        # Create test directory structure in TestDrive
-        $script:testRoot = Join-Path $TestDrive 'test'
+    BeforeEach {
+        # Create mock root directory
+        $script:testRoot = Join-Path $TestDrive 'mock'
         New-Item -Path $testRoot -ItemType Directory -Force | Out-Null
-        
+
         # Create default config
-        $defaultConfig = @{
-            name            = "default-name"
-            azureCliVersion = "2.68.0"
-            location        = "westeurope"
-        } | ConvertTo-Json
-        $script:defaultConfigPath = Join-Path $testRoot "default.deploymentconfig.json"
-        Set-Content -Path $defaultConfigPath -Value $defaultConfig
+        New-FileStructure -Path $testRoot -Structure @{
+            'default.deploymentconfig.jsonc' = @{
+                name            = "default-name"
+                azureCliVersion = "2.68.0"
+                location        = "westeurope"
+            } | ConvertTo-Json
+        }
 
         # Common parameters for all tests
         $script:commonParam = @{
-            DefaultDeploymentConfigPath = $defaultConfigPath
+            DefaultDeploymentConfigPath = "$testRoot/default.deploymentconfig.jsonc"
         }
     }
 
+    AfterEach {
+        Remove-Item -Path $testRoot -Recurse -Force -ErrorAction SilentlyContinue -ProgressAction SilentlyContinue
+    }
+    
     Context "Deployment config file formats" {
-        BeforeEach {
-            $script:deploymentPath = Join-Path $testRoot ([System.IO.Path]::GetRandomFileName())
-            New-Item -Path $deploymentPath -ItemType Directory -Force | Out-Null
-        }
-
         It "Should read JSON config file" {
-            $config = @{
-                name     = "deployment-name"
-                location = "northeurope"
-            } | ConvertTo-Json
-            Set-Content -Path (Join-Path $deploymentPath "deploymentconfig.json") -Value $config
-
-            $params = @{
-                DeploymentDirectoryPath = $deploymentPath
-                DeploymentFileName      = "dev.bicepparam"
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep'            = "targetScope = 'subscription'"
+                'prod.bicepparam'       = "using 'main.bicep"
+                'deploymentconfig.json' = @{ name = "mock-name" } | ConvertTo-Json
             }
 
-            $result = Get-DeploymentConfig @commonParam @params
-            $result.name | Should -Be "deployment-name"
+            $result = Get-DeploymentConfig @commonParam -DeploymentDirectoryPath $testRoot -DeploymentFileName "prod.bicepparam"
+            $result.name | Should -BeExactly "mock-name"
         }
 
         It "Should read JSONC config file" {
-            $config = @"
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep'             = "targetScope = 'subscription'"
+                'prod.bicepparam'        = "using 'main.bicep"
+                'deploymentconfig.jsonc' = @"
 {
     // This is a JSONC file
-    "name": "deployment-name",
+    "name": "mock-name",
     "location": "northeurope" // With comments
 }
 "@
-            Set-Content -Path (Join-Path $deploymentPath "deploymentconfig.jsonc") -Value $config
-
-            $params = @{
-                DeploymentDirectoryPath = $deploymentPath
-                DeploymentFileName      = "dev.bicepparam"
             }
 
-            $result = Get-DeploymentConfig @commonParam @params
-            $result.name | Should -Be "deployment-name"
+            $result = Get-DeploymentConfig @commonParam -DeploymentDirectoryPath $testRoot -DeploymentFileName "prod.bicepparam"
+            $result.name | Should -BeExactly "mock-name"
         }
 
         It "Should throw on multiple config files" {
-            Set-Content -Path (Join-Path $deploymentPath "deploymentconfig.json") -Value "{}"
-            Set-Content -Path (Join-Path $deploymentPath "deploymentconfig.jsonc") -Value "{}"
-
-            $params = @{
-                DeploymentDirectoryPath = $deploymentPath
-                DeploymentFileName      = "dev.bicepparam"
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep'             = "targetScope = 'subscription'"
+                'prod.bicepparam'        = "using 'main.bicep"
+                'deploymentconfig.json'  = "{}"
+                'deploymentconfig.jsonc' = "{}"
             }
 
-            { Get-DeploymentConfig @commonParam @params } | 
+            { Get-DeploymentConfig @commonParam -DeploymentDirectoryPath $testRoot -DeploymentFileName "prod.bicepparam" } | 
             Should -Throw "*Found multiple deploymentconfig files.*"
         }
     }
 
     Context "Config value precedence" {
-        BeforeEach {
-            $script:deploymentPath = Join-Path $testRoot ([System.IO.Path]::GetRandomFileName())
-            New-Item -Path $deploymentPath -ItemType Directory -Force | Out-Null
-        }
-
         It "Should override default values with local config" {
-            $config = @{
-                name     = "deployment-name"
-                location = "northeurope"
-            } | ConvertTo-Json
-            Set-Content -Path (Join-Path $deploymentPath "deploymentconfig.json") -Value $config
-
-            $params = @{
-                DeploymentDirectoryPath = $deploymentPath
-                DeploymentFileName      = "dev.bicepparam"
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep'             = "targetScope = 'subscription'"
+                'prod.bicepparam'        = "using 'main.bicep"
+                'deploymentconfig.jsonc' = @{
+                    name     = "mock-name"
+                    location = "northeurope"
+                } | ConvertTo-Json
             }
 
-            $result = Get-DeploymentConfig @commonParam @params
-            $result.location | Should -Be "northeurope"
-            $result.name | Should -Be "deployment-name"
+            $result = Get-DeploymentConfig @commonParam -DeploymentDirectoryPath $testRoot -DeploymentFileName "prod.bicepparam"
+            $result.name | Should -BeExactly "mock-name"
+            $result.location | Should -BeExactly "northeurope"
         }
 
         It "Should fall back to default values when not in local config" {
-            $config = @{
-                name = "deployment-name"
-            } | ConvertTo-Json
-            Set-Content -Path (Join-Path $deploymentPath "deploymentconfig.json") -Value $config
-
-            $params = @{
-                DeploymentDirectoryPath = $deploymentPath
-                DeploymentFileName      = "dev.bicepparam"
+            New-FileStructure -Path $testRoot -Structure @{
+                'main.bicep'             = "targetScope = 'subscription'"
+                'prod.bicepparam'        = "using 'main.bicep"
+                'deploymentconfig.jsonc' = @{
+                    name = "mock-name"
+                } | ConvertTo-Json
             }
 
-            $result = Get-DeploymentConfig @commonParam @params
-            $result.azureCliVersion | Should -Be "2.68.0"
+            $result = Get-DeploymentConfig @commonParam -DeploymentDirectoryPath $testRoot -DeploymentFileName "prod.bicepparam"
+            $result.name | Should -BeExactly "mock-name"
+            $result.location | Should -BeExactly "westeurope"
         }
-    }
-
-    AfterAll {
-        Remove-Item -Path $testRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }

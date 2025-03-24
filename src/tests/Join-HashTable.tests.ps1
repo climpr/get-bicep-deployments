@@ -1,5 +1,5 @@
 BeforeAll {
-    Import-Module $PSScriptRoot/../support-functions.psm1 -Force
+    Import-Module $PSScriptRoot/../DeployBicepHelpers.psm1 -Force
 }
 
 Describe "Join-HashTable" {
@@ -56,7 +56,7 @@ Describe "Join-HashTable" {
             $result.Keys | Should -HaveCount $ExpectedCount
             
             foreach ($key in $ExpectedValues.Keys) {
-                $result[$key] | Should -Be $ExpectedValues[$key]
+                $result[$key] | Should -BeExactly $ExpectedValues[$key]
             }
         }
     }
@@ -90,16 +90,16 @@ Describe "Join-HashTable" {
             $result.Keys | Should -HaveCount 3
             
             # Verify top-level values
-            $result.key1 | Should -Be "value2"
+            $result.key1 | Should -BeExactly "value2"
             
             # Verify nested structures
             $result.key2.Keys | Should -HaveCount 3
-            $result.key2.subKey1 | Should -Be "subValue1"
-            $result.key2.subKey2 | Should -Be "otherValue"
-            $result.key2.subKey3 | Should -Be "subValue3"
+            $result.key2.subKey1 | Should -BeExactly "subValue1"
+            $result.key2.subKey2 | Should -BeExactly "otherValue"
+            $result.key2.subKey3 | Should -BeExactly "subValue3"
             
             $result.key3.Keys | Should -HaveCount 1
-            $result.key3.subKey1 | Should -Be "subValue1"
+            $result.key3.subKey1 | Should -BeExactly "subValue1"
         }
     }
 }
