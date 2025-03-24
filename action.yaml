@@ -72,16 +72,16 @@ runs:
 
         switch ($env:eventName) {
           'push' {
-            $deployments = Get-BicepDeployments.ps1 @param -Mode 'Modified'
+            $deployments = Get-BicepDeployments @param -Mode 'Modified'
           }
           'pull_request_target' {
-            $deployments = Get-BicepDeployments.ps1 @param -Mode 'Modified'
+            $deployments = Get-BicepDeployments @param -Mode 'Modified'
           }
           'schedule' {
-            $deployments = Get-BicepDeployments.ps1 @param -Mode 'All'
+            $deployments = Get-BicepDeployments @param -Mode 'All'
           }
           'workflow_dispatch' {
-            $deployments = Get-BicepDeployments.ps1 @param -Mode 'All'
+            $deployments = Get-BicepDeployments @param -Mode 'All'
           }
           default {
             $deployments = @()
