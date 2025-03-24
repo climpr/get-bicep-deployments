@@ -53,10 +53,13 @@ runs:
         actionPath: ${{ github.action_path }}
         debug: ${{ runner.debug }}
       run: |
-        #* Get-BicepDeployments.ps1
+        #* Get-BicepDeployments
 
         #* Set debug preference from runner configuration
         $DebugPreference = [bool]$env:debug ? "Continue" : "SilentlyContinue"
+
+        #* Import module
+        Import-Module "$($env:actionPath)/src/DeployBicepHelpers.psm1" -Force
 
         #* Get deployments
         $param = @{
@@ -69,16 +72,16 @@ runs:
 
         switch ($env:eventName) {
           'push' {
-            $deployments = & "$($env:actionPath)/src/Get-BicepDeployments.ps1" @param -Mode 'Modified'
+            $deployments = Get-BicepDeployments @param -Mode 'Modified'
           }
           'pull_request_target' {
-            $deployments = & "$($env:actionPath)/src/Get-BicepDeployments.ps1" @param -Mode 'Modified'
+            $deployments = Get-BicepDeployments @param -Mode 'Modified'
           }
           'schedule' {
-            $deployments = & "$($env:actionPath)/src/Get-BicepDeployments.ps1" @param -Mode 'All'
+            $deployments = Get-BicepDeployments @param -Mode 'All'
           }
           'workflow_dispatch' {
-            $deployments = & "$($env:actionPath)/src/Get-BicepDeployments.ps1" @param -Mode 'All'
+            $deployments = Get-BicepDeployments @param -Mode 'All'
           }
           default {
             $deployments = @()
@@ -86,7 +89,7 @@ runs:
         }
 
         #* Write outputs
-        $jsonResult = ($deployments | Where-Object { $_.Deploy } | ConvertTo-Json -Compress -AsArray) ?? "[]"
+        $jsonResult = ConvertTo-Json -InputObject $deployments -Compress
         Write-Output "deployments=$($jsonResult)" >> $env:GITHUB_OUTPUT
 
 outputs:
