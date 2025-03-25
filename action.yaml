@@ -9,6 +9,10 @@ inputs:
     description: Github trigger event name.
     required: true
   environment:
+    description: Filter which environment to deploy to based on environment name.
+    required: false
+    default: ''
+  environment-pattern:
     description: Filter which environment to deploy to based on regex pattern.
     required: false
     default: .*
@@ -47,7 +51,8 @@ runs:
       env:
         deploymentsRootDirectory: ${{ steps.create-root-dir-array.outputs.deployment-root-dirs }}
         eventName: ${{ inputs.event-name }}
-        environmentPattern: ${{ inputs.environment }}
+        environment: ${{ inputs.environment }}
+        environmentPattern: ${{ inputs.environment-pattern }}
         pattern: ${{ inputs.pattern }}
         changedFiles: ${{ steps.changed-files.outputs.all_changed_files }}
         actionPath: ${{ github.action_path }}
@@ -67,6 +72,7 @@ runs:
           EventName                = $env:eventName
           ChangedFiles             = $env:changedFiles | ConvertFrom-Json -Depth 3
           Pattern                  = $env:pattern
+          Environment              = $env:environment
           EnvironmentPattern       = $env:environmentPattern
         }
 

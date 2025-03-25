@@ -603,6 +603,9 @@ function Get-BicepDeployments {
         $Pattern, 
 
         [string]
+        $Environment, 
+
+        [string]
         $EnvironmentPattern, 
 
         [string[]]
@@ -778,6 +781,26 @@ function Get-BicepDeployments {
             #* Exclude deployments that does not match the requested environment
             if ($deploymentObject.Deploy) {
                 Write-Debug "[$deploymentName][$environmentName] Checking if environment matches desired environment."
+                if (![string]::IsNullOrEmpty($Environment)) {
+                    if ($deploymentObject.Environment -eq $Environment) {
+                        Write-Debug "[$deploymentName][$environmentName] Desired environment [$Environment] matches deployment environment [$($deploymentObject.Environment)]. Deployment included."
+                    }
+                    else {
+                        $deploymentObject.Deploy = $false
+                        Write-Debug "[$deploymentName][$environmentName] Desired environment [$Environment] does not match deployment environment [$($deploymentObject.Environment)]. Deployment not included."
+                    }
+                }
+                else {
+                    Write-Debug "[$deploymentName][$environmentName] No desired environment pattern specified. Deployment is included."
+                }
+            }
+            else {
+                Write-Debug "[$deploymentName][$environmentName] Skipping environment check. Deployment already not included."
+            }
+
+            #* Exclude deployments that does not match the requested environment pattern
+            if ($deploymentObject.Deploy) {
+                Write-Debug "[$deploymentName][$environmentName] Checking if environment matches desired environment pattern."
                 if ($EnvironmentPattern) {
                     if ($deploymentObject.Environment -match $EnvironmentPattern) {
                         Write-Debug "[$deploymentName][$environmentName] Desired environment pattern [$EnvironmentPattern] matches deployment environment [$($deploymentObject.Environment)]. Deployment included."
@@ -792,7 +815,7 @@ function Get-BicepDeployments {
                 }
             }
             else {
-                Write-Debug "[$deploymentName][$environmentName] Skipping environment check. Deployment already not included."
+                Write-Debug "[$deploymentName][$environmentName] Skipping environment pattern check. Deployment already not included."
             }
         
             #* Exclude disabled deployments

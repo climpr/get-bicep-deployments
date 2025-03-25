@@ -170,6 +170,29 @@ Describe "Get-BicepDeployments" {
             $result | Should -HaveCount 2
             $result.Name | Should -BeExactly @("deployment-2-prod", "deployment-3-prod")
         }
+
+        It "Should handle environments with overlapping names" {
+            # Create mock deployments
+            New-FileStructure -Path $testRoot -Structure @{
+                'deployment-1' = @{
+                    'main.bicep'      = "targetScope = 'subscription'"
+                    'prod.bicepparam' = "using 'main.bicep'"
+                }
+                'deployment-2' = @{
+                    'main.bicep'         = "targetScope = 'subscription'"
+                    'nonprod.bicepparam' = "using 'main.bicep'"
+                    'prod.bicepparam'    = "using 'main.bicep'"
+                }
+            }
+
+            # Run script
+            $result = Get-BicepDeployments @commonParams -EventName "workflow_dispatch" -Mode "All" -Environment "prod"
+
+            # Assert
+            $result -is [System.Object[]] | Should -BeTrue
+            $result | Should -HaveCount 2
+            $result.Name | Should -BeExactly @("deployment-1-prod", "deployment-2-prod")
+        }
     }
 
     Context "When mode is 'All'" {
