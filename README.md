@@ -48,6 +48,10 @@ Supported events are: `push`, `schedule`, `pull_request_target` and `workflow_di
 If this parameter is specified, only deployments matching the specified environment is included.
 > NOTE: The environment is calculated from the first dot delimited element in the `.bicepparam` file name. I.e. `prod` in `prod.bicepparam` or `prod.main.bicepparam`.
 
+### `environment-pattern`
+If this parameter is specified, only deployments matching the specified environment regex pattern is included.
+> NOTE: The environment is calculated from the first dot delimited element in the `.bicepparam` file name. I.e. `prod` in `prod.bicepparam` or `prod.main.bicepparam`.
+
 ### `pattern`
 If this parameter is specified, only the deployments matching the specified regex pattern is included.
 > NOTE: This pattern is matched against the deployment **directory**. I.e. `sample-deployment` in the following directory structure: `deployments/sample-deployment/prod.bicepparam`.
