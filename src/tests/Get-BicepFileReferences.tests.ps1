@@ -346,7 +346,7 @@ Describe "Get-BicepFileReferences" {
                 }
             }
             @{
-                scenario   = "multiline regular import statement with multiple imports"
+                scenario   = "multi-line regular import statement with multiple imports"
                 expected   = @('main.bicep', 'export.bicep')
                 entryPoint = 'main.bicep'
                 mock       = @{
@@ -359,7 +359,7 @@ Describe "Get-BicepFileReferences" {
                 }
             }
             @{
-                scenario   = "multiline alias import statement with multiple imports"
+                scenario   = "multi-line alias import statement with multiple imports"
                 expected   = @('main.bicep', 'export.bicep')
                 entryPoint = 'main.bicep'
                 mock       = @{
