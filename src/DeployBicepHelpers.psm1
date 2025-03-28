@@ -350,7 +350,7 @@ function Get-BicepFileReferences {
     $rxUsing = "(?:using(?:\s+))"
     $rxExtends = "(?:extends(?:\s+))"
     $rxModule = "(?:module(?:\s+)(?:.+?)(?:\s+))"
-    $rxImport = "(?:import\s+\{[^}]+\}\s+from\s+)"
+    $rxImport = "(?:import\s+(?:\{[^}]+\}|\*\s+as\s+\S+)\s+from\s+)"
     $rxFunctions = "(?:(?:loadFileAsBase64|loadJsonContent|loadYamlContent|loadTextContent)$rxOptionalSpace\()"
 
     #* Complete regex
