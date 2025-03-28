@@ -350,10 +350,11 @@ function Get-BicepFileReferences {
     $rxUsing = "(?:using(?:\s+))"
     $rxExtends = "(?:extends(?:\s+))"
     $rxModule = "(?:module(?:\s+)(?:.+?)(?:\s+))"
+    $rxImport = "(?:import\s+(?:\{[^}]+\}|\*\s+as\s+\S+)\s+from\s+)"
     $rxFunctions = "(?:(?:loadFileAsBase64|loadJsonContent|loadYamlContent|loadTextContent)$rxOptionalSpace\()"
 
     #* Complete regex
-    $regex = "(?:$rxUsing|$rxExtends|$rxModule|$rxFunctions)$rxSingleQuote(?:$rxOptionalSpace(.+?))$rxSingleQuote"
+    $regex = "(?:$rxUsing|$rxExtends|$rxModule|$rxImport|$rxFunctions)$rxSingleQuote(?:$rxOptionalSpace(.+?))$rxSingleQuote"
 
     #* Set temporary relative location
     Push-Location -Path $parentFullPath
