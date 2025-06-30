@@ -277,4 +277,128 @@ Describe "Get-BicepFileReferences" {
             $result | Should -BeIn $relativeExpectedPaths
         }
     }
+
+    Context "When processing import statement references" {
+        It "Should handle <scenario> correctly" -TestCases @(
+            @{
+                scenario   = "no import statement"
+                expected   = @('main.bicep')
+                entryPoint = 'main.bicep'
+                mock       = @{
+                    'main.bicep' = ""
+                }
+            }
+            @{
+                scenario   = "regular import statement with one import"
+                expected   = @('main.bicep', 'export.bicep')
+                entryPoint = 'main.bicep'
+                mock       = @{
+                    'main.bicep' = "import { var1 } from 'export.bicep'"
+                }
+            }
+            @{
+                scenario   = "regular import statement with multiple imports"
+                expected   = @('main.bicep', 'export.bicep')
+                entryPoint = 'main.bicep'
+                mock       = @{
+                    'main.bicep' = "import { var1, var2 } from 'export.bicep'"
+                }
+            }
+            @{
+                scenario   = "alias import statement with single imports"
+                expected   = @('main.bicep', 'export.bicep')
+                entryPoint = 'main.bicep'
+                mock       = @{
+                    'main.bicep' = "import { var1 as aliasVar1 } from 'export.bicep'"
+                }
+            }
+            @{
+                scenario   = "alias import statement with multiple imports"
+                expected   = @('main.bicep', 'export.bicep')
+                entryPoint = 'main.bicep'
+                mock       = @{
+                    'main.bicep' = "import { var1 as aliasVar1, var2 as aliasVar2 } from 'export.bicep'"
+                }
+            }
+            @{
+                scenario   = "alias import statement with *"
+                expected   = @('main.bicep', 'export.bicep')
+                entryPoint = 'main.bicep'
+                mock       = @{
+                    'main.bicep' = "import * as alias from 'export.bicep'"
+                }
+            }
+            @{
+                scenario   = "import from remote module"
+                expected   = @('main.bicep', 'br/public:avm/utl/types/avm-common-types:0.5.1')
+                entryPoint = 'main.bicep'
+                mock       = @{
+                    'main.bicep' = "import { lockType } from 'br/public:avm/utl/types/avm-common-types:0.5.1'"
+                }
+            }
+            @{
+                scenario   = "import in .bicepparam file"
+                expected   = @('main.bicepparam', 'main.bicep', 'export.bicep')
+                entryPoint = 'main.bicepparam'
+                mock       = @{
+                    'main.bicep'      = ""
+                    'main.bicepparam' = "using 'main.bicep'`nimport { var1 } from 'export.bicep'"
+                }
+            }
+            @{
+                scenario   = "multi-line regular import statement with multiple imports"
+                expected   = @('main.bicep', 'export.bicep')
+                entryPoint = 'main.bicep'
+                mock       = @{
+                    'main.bicep' = @'
+"import {
+  var1,
+  var2
+} from 'export.bicep'"
+'@
+                }
+            }
+            @{
+                scenario   = "multi-line alias import statement with multiple imports"
+                expected   = @('main.bicep', 'export.bicep')
+                entryPoint = 'main.bicep'
+                mock       = @{
+                    'main.bicep' = @'
+"import {
+  var1 as aliasVar1,
+  var2 as aliasVar2
+} from 'export.bicep'"
+'@
+                }
+            }
+        ) {
+            param ($mock, $expected)
+            $baseMock = @{
+                'export.bicep' = @'
+@export
+var var1 = 'hello'
+
+@export
+var var2 = 'world'
+'@
+            }
+
+            # Create mock deployments
+            New-FileStructure -Path $testRoot -Structure ($baseMock + $mock)
+
+            # Resolve relative paths
+            $relativeExpectedPaths = foreach ($item in $expected) {
+                $fullPath = Join-Path -Path $testRoot -ChildPath $item
+                if (Test-Path -Path $fullPath) { Resolve-Path -Relative $fullPath }
+                else { $item }
+            }
+
+            # Run script
+            $result = Get-BicepFileReferences -Path $entryPoint -ParentPath $testRoot
+            
+            # Assert
+            $result | Should -HaveCount $expected.Count
+            $result | Should -BeIn $relativeExpectedPaths
+        }
+    }
 }
