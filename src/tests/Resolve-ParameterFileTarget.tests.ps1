@@ -2,9 +2,10 @@ BeforeAll {
     if ((Get-PSResourceRepository -Name PSGallery).Trusted -eq $false) {
         Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$false
     }
-    if ((Get-PSResource -Name Bicep -ErrorAction Ignore).Version -lt "2.8.0") {
+    if (!(Get-PSResource -Name Bicep -ErrorAction Ignore)) {
         Install-PSResource -Name Bicep
     }
+    Update-PSResource -Name Bicep
     Import-Module $PSScriptRoot/../DeployBicepHelpers.psm1 -Force
 }
 
