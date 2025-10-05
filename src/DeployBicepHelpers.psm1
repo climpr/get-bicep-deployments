@@ -1031,7 +1031,7 @@ function Resolve-DeploymentConfig {
             }
     
             if ($DeploymentWhatIf) {
-                $azCliCommand += "--what-if"
+                $azCliCommand += "--what-if --what-if-exclude-change-types Ignore NoChange"
             }
         }
 
