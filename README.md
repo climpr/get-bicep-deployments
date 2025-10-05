@@ -32,10 +32,13 @@ steps:
 ## Parameters
 
 ### `deployments-root-directory`
+
 The root directory in which deployments are located.
+
 > NOTE: It needs to be a directory at least one level above the deployment directory. I.e. `deployments` if the desired deployment is the following: `deployments/sample-deployment/prod.bicepparam`.
 
 ### `event-name`
+
 The Github event name that triggers the workflow. This decides the primary logic for which deployments to include.
 Supported events are: `push`, `schedule`, `pull_request_target` and `workflow_dispatch`.
 
@@ -45,15 +48,21 @@ Supported events are: `push`, `schedule`, `pull_request_target` and `workflow_di
 - `workflow_dispatch`: Manual trigger. Includes all deployments by default, but requires filters.
 
 ### `environment`
+
 If this parameter is specified, only deployments matching the specified environment is included.
+
 > NOTE: The environment is calculated from the first dot delimited element in the `.bicepparam` file name. I.e. `prod` in `prod.bicepparam` or `prod.main.bicepparam`.
 
 ### `environment-pattern`
+
 If this parameter is specified, only deployments matching the specified environment regex pattern is included.
+
 > NOTE: The environment is calculated from the first dot delimited element in the `.bicepparam` file name. I.e. `prod` in `prod.bicepparam` or `prod.main.bicepparam`.
 
 ### `pattern`
+
 If this parameter is specified, only the deployments matching the specified regex pattern is included.
+
 > NOTE: This pattern is matched against the deployment **directory**. I.e. `sample-deployment` in the following directory structure: `deployments/sample-deployment/prod.bicepparam`.
 
 ## Examples:
@@ -79,7 +88,7 @@ on:
 jobs:
   deploy-bicep:
     name: "Deploy sample-deployment to prod"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     environment:
       name: prod
     permissions:
@@ -139,7 +148,7 @@ on:
 
 jobs:
   get-bicep-deployments:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read # Required for repo checkout
 
@@ -162,7 +171,7 @@ jobs:
   deploy-bicep-parallel:
     name: "[${{ matrix.Name }}][${{ matrix.Environment }}] Deploy"
     if: "${{ needs.get-bicep-deployments.outputs.deployments != '' && needs.get-bicep-deployments.outputs.deployments != '[]' }}"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     needs:
       - get-bicep-deployments
     strategy:

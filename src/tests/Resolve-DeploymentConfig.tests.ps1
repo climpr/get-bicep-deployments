@@ -2,9 +2,10 @@ BeforeAll {
     if ((Get-PSResourceRepository -Name PSGallery).Trusted -eq $false) {
         Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$false
     }
-    if ((Get-PSResource -Name Bicep -ErrorAction Ignore).Version -lt "2.8.0") {
+    if (!(Get-PSResource -Name Bicep -ErrorAction Ignore)) {
         Install-PSResource -Name Bicep
     }
+    Update-PSResource -Name Bicep
     Import-Module $PSScriptRoot/../DeployBicepHelpers.psm1 -Force
 
     function New-FileStructure {
@@ -43,6 +44,7 @@ Describe "Resolve-DeploymentConfig" {
             '$schema'         = "https://raw.githubusercontent.com/climpr/climpr-schemas/main/schemas/v1.0.0/bicep-deployment/deploymentconfig.json#"
             'location'        = "westeurope"
             'azureCliVersion' = "latest"
+            'bicepVersion'    = "latest"
         }
         $defaultDeploymentConfig | ConvertTo-Json | Out-File -FilePath $defaultDeploymentConfigPath
 
@@ -219,6 +221,7 @@ Describe "Resolve-DeploymentConfig" {
                 $properties = [ordered]@{
                     Deploy            = $true
                     AzureCliVersion   = $defaultDeploymentConfig.azureCliVersion
+                    BicepVersion      = $defaultDeploymentConfig.bicepVersion
                     Type              = "deployment"
                     Scope             = "subscription"
                     ParameterFile     = $paramFileRelative
@@ -242,17 +245,17 @@ Describe "Resolve-DeploymentConfig" {
             It "Should handle <scenario> correctly" -TestCases @(
                 @{
                     scenario = "no 'DeploymentWhatIf' parameter"
-                    expected = "^(?!.*--what-if).*$"
+                    expected = "^(?!.*--what-if --what-if-exclude-change-types Ignore NoChange).*$"
                 }
                 @{
                     scenario         = "false 'DeploymentWhatIf' parameter"
                     deploymentWhatIf = $false
-                    expected         = "^(?!.*--what-if).*$"
+                    expected         = "^(?!.*--what-if --what-if-exclude-change-types Ignore NoChange).*$"
                 }
                 @{
                     scenario         = "true 'DeploymentWhatIf' parameter"
                     deploymentWhatIf = $true
-                    expected         = "--what-if"
+                    expected         = "--what-if --what-if-exclude-change-types Ignore NoChange"
                 }
             ) {
                 param ($scenario, $deploymentWhatIf, $expected)
@@ -291,6 +294,7 @@ Describe "Resolve-DeploymentConfig" {
                 $properties = [ordered]@{
                     Deploy            = $true
                     AzureCliVersion   = $defaultDeploymentConfig.azureCliVersion
+                    BicepVersion      = $defaultDeploymentConfig.bicepVersion
                     Type              = "deploymentStack"
                     Scope             = "subscription"
                     ParameterFile     = $paramFileRelative

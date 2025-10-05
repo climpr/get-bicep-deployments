@@ -263,6 +263,9 @@ function Get-DeploymentConfig {
     if ($climprConfig.bicepDeployment -and $climprConfig.bicepDeployment.azureCliVersion) {
         $climprConfigOptions.Add("azureCliVersion", $climprConfig.bicepDeployment.azureCliVersion)
     }
+    if ($climprConfig.bicepDeployment -and $climprConfig.bicepDeployment.bicepVersion) {
+        $climprConfigOptions.Add("bicepVersion", $climprConfig.bicepDeployment.bicepVersion)
+    }
 
     #* Parse most specific deploymentconfig file
     $fileNames = @(
@@ -971,6 +974,7 @@ function Resolve-DeploymentConfig {
     $deploymentObject = [pscustomobject]@{
         Deploy             = $true
         AzureCliVersion    = $deploymentConfig.azureCliVersion
+        BicepVersion       = $deploymentConfig.bicepVersion
         Environment        = $environmentName
         Type               = $deploymentConfig.type ?? "deployment"
         Scope              = Resolve-TemplateDeploymentScope -DeploymentFilePath $deploymentFileRelativePath -DeploymentConfig $deploymentConfig

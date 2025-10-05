@@ -37,6 +37,7 @@ Describe "Get-DeploymentConfig" {
             'default.deploymentconfig.jsonc' = @{
                 name            = "default-name"
                 azureCliVersion = "latest"
+                bicepVersion    = "latest"
                 location        = "westeurope"
             } | ConvertTo-Json
         }
