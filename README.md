@@ -85,7 +85,7 @@ If this parameter is specified, only the deployments matching the specified rege
 
 > NOTE: This pattern is matched against the deployment **directory**. I.e. `sample-deployment` in the following directory structure: `deployments/sample-deployment/prod.bicepparam`.
 
-## Outputs:
+## Outputs
 
 ### Schema
 
@@ -125,7 +125,7 @@ If this parameter is specified, only the deployments matching the specified rege
 ]
 ```
 
-## Examples:
+## Examples
 
 ### Single deployment
 
