@@ -12,11 +12,11 @@ This action assists in determining which Bicep deployments should be deployed ba
     - [`environment`](#environment)
     - [`environment-pattern`](#environment-pattern)
     - [`pattern`](#pattern)
-  - [Outputs:](#outputs)
+  - [Outputs](#outputs)
     - [Schema](#schema)
       - [`deployments`](#deployments)
     - [Example output](#example-output)
-  - [Examples:](#examples)
+  - [Examples](#examples)
     - [Single deployment](#single-deployment)
     - [Multi-deployments](#multi-deployments)
 
