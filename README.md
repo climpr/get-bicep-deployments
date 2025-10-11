@@ -13,9 +13,7 @@ This action assists in determining which Bicep deployments should be deployed ba
     - [`environment-pattern`](#environment-pattern)
     - [`pattern`](#pattern)
   - [Outputs](#outputs)
-    - [Schema](#schema)
-      - [`deployments`](#deployments)
-    - [Example output](#example-output)
+    - [`deployments`](#deployments)
   - [Examples](#examples)
     - [Single deployment](#single-deployment)
     - [Multi-deployments](#multi-deployments)
@@ -87,9 +85,15 @@ If this parameter is specified, only the deployments matching the specified rege
 
 ## Outputs
 
-### Schema
+```json
+{
+  "deployments": [<deployments>] // JSON array of deployments (see schema below)
+}
+```
 
-#### `deployments`
+### `deployments`
+
+**Schema**
 
 ```jsonc
 [
@@ -105,7 +109,7 @@ If this parameter is specified, only the deployments matching the specified rege
 ]
 ```
 
-### Example output
+**Example**
 
 ```jsonc
 [
