@@ -2,6 +2,26 @@
 
 This action assists in determining which Bicep deployments should be deployed based on conditions like the Github event, modified files, regex and environment filters and the `deploymentconfig.json` or `deploymentconfig.jsonc` configuration file.
 
+<!-- TOC -->
+
+- [Get Bicep Deployments](#get-bicep-deployments)
+  - [How to use this action](#how-to-use-this-action)
+  - [Parameters](#parameters)
+    - [`deployments-root-directory`](#deployments-root-directory)
+    - [`event-name`](#event-name)
+    - [`environment`](#environment)
+    - [`environment-pattern`](#environment-pattern)
+    - [`pattern`](#pattern)
+  - [Outputs:](#outputs)
+    - [Output schema](#output-schema)
+      - ['deployments'](#deployments)
+    - [Example output](#example-output)
+  - [Examples:](#examples)
+    - [Single deployment](#single-deployment)
+    - [Multi-deployments](#multi-deployments)
+
+<!-- /TOC -->
+
 ## How to use this action
 
 This action can be used multiple ways.
@@ -64,6 +84,46 @@ If this parameter is specified, only deployments matching the specified environm
 If this parameter is specified, only the deployments matching the specified regex pattern is included.
 
 > NOTE: This pattern is matched against the deployment **directory**. I.e. `sample-deployment` in the following directory structure: `deployments/sample-deployment/prod.bicepparam`.
+
+## Outputs:
+
+### Output schema
+
+#### 'deployments'
+
+```jsonc
+[
+  {
+    "Name": string, // Name of the deployment (Directory name)
+    "Environment": string, // Name of the environment (from the .bicepparam or .bicep file name)
+    "DeploymentFile": string, // Full path to the .bicepparam or .bicep file used for deployment
+    "ParameterFile": string?, // Full path to the .bicepparam file used for deployment (if any)
+    "References": string[], // List of all files referenced by the deployment (including the deployment file itself)
+    "Deploy": boolean, // Whether this deployment should be deployed or not
+    "Modified": boolean // Whether any of the referenced files are modified in the triggering commit/pull request
+  }
+]
+```
+
+### Example output
+
+```jsonc
+[
+  {
+    "Name": "sample-deployment",
+    "Environment": "prod",
+    "DeploymentFile": "/home/runner/work/bi-az-banner-online/bi-az-banner-online/bicep-deployments/sample-deployment/prod.bicepparam",
+    "ParameterFile": "/home/runner/work/bi-az-banner-online/bi-az-banner-online/bicep-deployments/sample-deployment/prod.bicepparam",
+    "References": [
+      "./bicep-deployments/sample-deployment/modules/sample-submodule/main.bicep",
+      "./bicep-deployments/sample-deployment/main.bicep",
+      "./bicep-deployments/sample-deployment/prod.bicepparam"
+    ],
+    "Deploy": true,
+    "Modified": false
+  }
+]
+```
 
 ## Examples:
 
