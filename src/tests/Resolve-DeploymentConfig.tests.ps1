@@ -202,6 +202,130 @@ Describe "Resolve-DeploymentConfig" {
                 $result.Deploy | Should -BeExactly $expected
             }
         }
+
+        Context "'enabledOn' parameter" {
+            It "Should handle <scenario> correctly" -TestCases @(
+                @{
+                    scenario         = "enabledOn not specified (all triggers enabled by default)"
+                    deploymentConfig = @{}
+                    eventName        = "push"
+                    expected         = $true
+                }
+                @{
+                    scenario         = "enabledOn list includes current trigger"
+                    deploymentConfig = @{ enabledOn = @("workflow_dispatch", "schedule") }
+                    eventName        = "workflow_dispatch"
+                    expected         = $true
+                }
+                @{
+                    scenario         = "enabledOn list does not include current trigger"
+                    deploymentConfig = @{ enabledOn = @("schedule") }
+                    eventName        = "workflow_dispatch"
+                    expected         = $false
+                }
+                @{
+                    scenario         = "enabledOn single trigger matches"
+                    deploymentConfig = @{ enabledOn = @("workflow_dispatch") }
+                    eventName        = "workflow_dispatch"
+                    expected         = $true
+                }
+                @{
+                    scenario         = "enabledOn single trigger does not match"
+                    deploymentConfig = @{ enabledOn = @("workflow_dispatch") }
+                    eventName        = "push"
+                    expected         = $false
+                }
+                @{
+                    scenario         = "disabled takes precedence over enabledOn"
+                    deploymentConfig = @{ 
+                        enabledOn = @("workflow_dispatch")
+                        disabled = $true
+                    }
+                    eventName        = "workflow_dispatch"
+                    expected         = $false
+                }
+            ) {
+                param ($scenario, $deploymentConfig, $eventName, $expected)
+                New-FileStructure -Path $testRoot -Structure @{
+                    'main.bicep'             = "targetScope = 'subscription'"
+                    'prod.bicepparam'        = "using 'main.bicep'"
+                    'deploymentconfig.jsonc' = $deploymentConfig | ConvertTo-Json -Depth 5
+                }
+                $result = Resolve-DeploymentConfig @commonParams -DeploymentFilePath "$testRoot/prod.bicepparam" -GitHubEventName $eventName
+                $result.Deploy | Should -BeExactly $expected -Because $scenario
+            }
+        }
+
+        Context "'disabledOn' parameter" {
+            It "Should handle <scenario> correctly" -TestCases @(
+                @{
+                    scenario         = "disabledOn not specified (all triggers enabled by default)"
+                    deploymentConfig = @{}
+                    eventName        = "workflow_dispatch"
+                    expected         = $true
+                }
+                @{
+                    scenario         = "disabledOn list includes current trigger"
+                    deploymentConfig = @{ disabledOn = @("pull_request_target", "push") }
+                    eventName        = "push"
+                    expected         = $false
+                }
+                @{
+                    scenario         = "disabledOn list does not include current trigger"
+                    deploymentConfig = @{ disabledOn = @("pull_request_target") }
+                    eventName        = "workflow_dispatch"
+                    expected         = $true
+                }
+                @{
+                    scenario         = "disabledOn single trigger matches"
+                    deploymentConfig = @{ disabledOn = @("pull_request_target") }
+                    eventName        = "pull_request_target"
+                    expected         = $false
+                }
+                @{
+                    scenario         = "disabledOn single trigger does not match"
+                    deploymentConfig = @{ disabledOn = @("pull_request_target") }
+                    eventName        = "push"
+                    expected         = $true
+                }
+                @{
+                    scenario         = "disabled takes precedence over disabledOn"
+                    deploymentConfig = @{ 
+                        disabledOn = @("pull_request_target")
+                        disabled = $true
+                    }
+                    eventName        = "workflow_dispatch"
+                    expected         = $false
+                }
+                @{
+                    scenario         = "enabledOn and disabledOn both specified (disabledOn takes precedence)"
+                    deploymentConfig = @{ 
+                        enabledOn = @("push", "workflow_dispatch")
+                        disabledOn = @("push")
+                    }
+                    eventName        = "push"
+                    expected         = $false
+                }
+                @{
+                    scenario         = "enabledOn blocks and disabledOn would also block"
+                    deploymentConfig = @{ 
+                        enabledOn = @("workflow_dispatch")
+                        disabledOn = @("push")
+                    }
+                    eventName        = "push"
+                    expected         = $false
+                }
+            ) {
+                param ($scenario, $deploymentConfig, $eventName, $expected)
+                New-FileStructure -Path $testRoot -Structure @{
+                    'main.bicep'             = "targetScope = 'subscription'"
+                    'prod.bicepparam'        = "using 'main.bicep'"
+                    'deploymentconfig.jsonc' = $deploymentConfig | ConvertTo-Json -Depth 5
+                }
+                $result = Resolve-DeploymentConfig @commonParams -DeploymentFilePath "$testRoot/prod.bicepparam" -GitHubEventName $eventName
+                $result.Deploy | Should -BeExactly $expected -Because $scenario
+            }
+        }
     }
 
     # MARK: Deployment

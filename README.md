@@ -5,18 +5,25 @@ This action assists in determining which Bicep deployments should be deployed ba
 <!-- TOC -->
 
 - [Get Bicep Deployments](#get-bicep-deployments)
-  - [How to use this action](#how-to-use-this-action)
-  - [Parameters](#parameters)
-    - [`deployments-root-directory`](#deployments-root-directory)
-    - [`event-name`](#event-name)
-    - [`environment`](#environment)
-    - [`environment-pattern`](#environment-pattern)
-    - [`pattern`](#pattern)
-  - [Outputs](#outputs)
-    - [`deployments`](#deployments)
-  - [Examples](#examples)
-    - [Single deployment](#single-deployment)
-    - [Multi-deployments](#multi-deployments)
+    - [How to use this action](#how-to-use-this-action)
+    - [Parameters](#parameters)
+        - [deployments-root-directory](#deployments-root-directory)
+        - [event-name](#event-name)
+        - [environment](#environment)
+        - [environment-pattern](#environment-pattern)
+        - [pattern](#pattern)
+    - [Outputs](#outputs)
+        - [deployments](#deployments)
+    - [Deployment Configuration](#deployment-configuration)
+        - [Configuration File Example](#configuration-file-example)
+        - [Common Properties](#common-properties)
+            - [disabled boolean, optional](#disabled-boolean-optional)
+            - [enabledOn array, optional](#enabledon-array-optional)
+            - [disabledOn array, optional](#disabledon-array-optional)
+        - [Precedence Order](#precedence-order)
+    - [Examples](#examples)
+        - [Single deployment](#single-deployment)
+        - [Multi-deployments](#multi-deployments)
 
 <!-- /TOC -->
 
@@ -128,6 +135,95 @@ If this parameter is specified, only the deployments matching the specified rege
   }
 ]
 ```
+
+## Deployment Configuration
+
+The `deploymentconfig.json` or `deploymentconfig.jsonc` file controls deployment behavior. This file is placed in the deployment directory and allows you to:
+
+- Disable/enable deployments globally
+- Specify which GitHub events should enable or disable a deployment
+- Configure deployment parameters and options
+
+### Configuration File Example
+
+```jsonc
+{
+  "location": "westeurope",
+  "disabled": false,
+  "enabledOn": ["workflow_dispatch", "schedule"],
+  "disabledOn": ["pull_request_target"]
+}
+```
+
+### Common Properties
+
+#### `disabled` (boolean, optional)
+
+When `true`, the deployment is excluded for all GitHub events. This takes **highest precedence** over all other settings.
+
+```jsonc
+{
+  // Disable deployment
+  "disabled": true
+}
+```
+
+#### `enabledOn` (array, optional)
+
+Specify the GitHub events on which this deployment will run. The deployment is **only** enabled when triggered by one of the listed events.
+
+Supported events: `push`, `pull_request_target`, `schedule`, `workflow_dispatch`
+
+**Common use case:** Manual deployments only
+
+```jsonc
+{
+  // Only enable when manually triggered
+  "enabledOn": ["workflow_dispatch"]
+}
+```
+
+**Common use case:** Scheduled and manual deployments
+
+```jsonc
+{
+  // Enable for scheduled and manual events
+  "enabledOn": ["schedule", "workflow_dispatch"]
+}
+```
+
+#### `disabledOn` (array, optional)
+
+Specify the GitHub events on which this deployment will not run. This is useful when you want to skip deployment for specific events while allowing all others.
+
+Supported events: `push`, `pull_request_target`, `schedule`, `workflow_dispatch`
+
+**Common use case:** Disable on schedule only
+
+```jsonc
+{
+  // Deploy on everything except schedule
+  "disabledOn": ["schedule"]
+}
+```
+
+**Common use case:** Disable deployment for both push and pull request events.
+
+```jsonc
+{
+  // Disable for push and PR events
+  "disabledOn": ["push", "pull_request_target"]
+}
+```
+
+### Precedence Order
+
+Disables are restrictive and always win. The following order determines if a deployment is enabled (checked top-to-bottom):
+
+1. **`disabled: true` (global)** → The deployment is always disabled, regardless of any other settings.
+2. **`disabledOn` specified** → The deployment is disabled if the current event is in the denylist.
+3. **`enabledOn` specified** → The deployment is enabled **only** if the current event is in the `enabledOn` list; everything else is disabled.
+4. **Default** → The deployment is enabled.
 
 ## Examples
 
