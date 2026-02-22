@@ -15,6 +15,7 @@ This action assists in determining which Bicep deployments should be deployed ba
     - [Outputs](#outputs)
         - [deployments](#deployments)
     - [Deployment Configuration](#deployment-configuration)
+        - [Supported Configuration File Names](#supported-configuration-file-names)
         - [Configuration File Example](#configuration-file-example)
         - [Common Properties](#common-properties)
             - [disabled boolean, optional](#disabled-boolean-optional)
@@ -138,11 +139,25 @@ If this parameter is specified, only the deployments matching the specified rege
 
 ## Deployment Configuration
 
-The `deploymentconfig.json` or `deploymentconfig.jsonc` file controls deployment behavior. This file is placed in the deployment directory and allows you to:
+Configuration files can be used to control deployment behavior. These files are placed in the deployment directory and allow you to:
 
 - Disable/enable deployments globally
 - Specify which GitHub events should enable or disable a deployment
 - Configure deployment parameters and options
+
+### Supported Configuration File Names
+
+The action supports the following configuration file naming conventions (checked in order):
+
+1. **Generic deployment config** (applies to all deployments in directory):
+   - `deploymentconfig.json`
+   - `deploymentconfig.jsonc`
+
+2. **Per-deployment config** (deployment-specific):
+   - `<deploymentFile>.deploymentconfig.json` - e.g., `prod.deploymentconfig.json` for `prod.bicepparam`
+   - `<deploymentFile>.deploymentconfig.jsonc` - e.g., `prod.deploymentconfig.jsonc` for `prod.bicepparam`
+
+The first matching file is used. Per-deployment configs take precedence over generic configs.
 
 ### Configuration File Example
 

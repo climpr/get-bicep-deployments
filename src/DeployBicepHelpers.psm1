@@ -830,16 +830,16 @@ function Get-BicepDeployments {
                 }
                 elseif ($deploymentConfig.triggers -and $deploymentConfig.triggers.ContainsKey($EventName) -and $deploymentConfig.triggers[$EventName].disabled) {
                     $deploymentObject.Deploy = $false
-                    Write-Warning "[$deploymentName][$environmentName] The 'triggers.<eventName>.disabled' configuration option is deprecated and will be removed in a future version. Please migrate to 'disabledOn' and 'enabledOn' instead. Example: 'disabledOn: [\"$EventName\"]'."
+                    Write-Warning "[$deploymentName][$environmentName] The 'triggers.<eventName>.disabled' configuration option is deprecated and will be removed in a future version. Please migrate to 'disabledOn' or 'enabledOn' instead. Example (JSON/JSONC): \`\"disabledOn\": [\"$EventName\"]\` or \`\"enabledOn\": [\"$EventName\"]\`."
                     Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for trigger [$EventName]. Deployment is not included."
                 }
-                elseif ($deploymentConfig.disabledOn -and $EventName -in $deploymentConfig.disabledOn) {
+                elseif ($deploymentConfig.disabledOn -and $EventName -in @($deploymentConfig.disabledOn)) {
                     $deploymentObject.Deploy = $false
-                    Write-Debug "[$deploymentName][$environmentName] Trigger [$EventName] is in disabledOn list [$($deploymentConfig.disabledOn -join ', ')]. Deployment is not included."
+                    Write-Debug "[$deploymentName][$environmentName] Trigger [$EventName] is in disabledOn list [$(@($deploymentConfig.disabledOn) -join ', ')]. Deployment is not included."
                 }
-                elseif ($deploymentConfig.enabledOn -and $EventName -notin $deploymentConfig.enabledOn) {
+                elseif ($deploymentConfig.enabledOn -and $EventName -notin @($deploymentConfig.enabledOn)) {
                     $deploymentObject.Deploy = $false
-                    Write-Debug "[$deploymentName][$environmentName] Trigger [$EventName] is not in enabledOn list [$($deploymentConfig.enabledOn -join ', ')]. Deployment is not included."
+                    Write-Debug "[$deploymentName][$environmentName] Trigger [$EventName] is not in enabledOn list [$(@($deploymentConfig.enabledOn) -join ', ')]. Deployment is not included."
                 }
             }
 
@@ -1209,16 +1209,16 @@ function Resolve-DeploymentConfig {
         }
         elseif ($deploymentConfig.triggers -and $deploymentConfig.triggers.ContainsKey($GitHubEventName) -and $deploymentConfig.triggers[$GitHubEventName].disabled) {
             $deploymentObject.Deploy = $false
-            Write-Warning "[$deploymentId] The 'triggers.<eventName>.disabled' configuration option is deprecated and will be removed in a future version. Please migrate to 'disabledOn' instead. Example: 'disabledOn: [\"$GitHubEventName\"]'."
+            Write-Warning "[$deploymentId] The 'triggers.<eventName>.disabled' configuration option is deprecated and will be removed in a future version. Please migrate to 'disabledOn' or 'enabledOn' instead. Example (JSON/JSONC): \`\"disabledOn\": [\"$GitHubEventName\"]\` or \`\"enabledOn\": [\"$GitHubEventName\"]\`."
             Write-Debug "[$deploymentId] Deployment is disabled for trigger [$GitHubEventName]. Deployment is skipped."
         }
-        elseif ($deploymentConfig.disabledOn -and $GitHubEventName -in $deploymentConfig.disabledOn) {
+        elseif ($deploymentConfig.disabledOn -and $GitHubEventName -in @($deploymentConfig.disabledOn)) {
             $deploymentObject.Deploy = $false
-            Write-Debug "[$deploymentId] Trigger [$GitHubEventName] is in disabledOn list [$($deploymentConfig.disabledOn -join ', ')]. Deployment is skipped."
+            Write-Debug "[$deploymentId] Trigger [$GitHubEventName] is in disabledOn list [$(@($deploymentConfig.disabledOn) -join ', ')]. Deployment is skipped."
         }
-        elseif ($deploymentConfig.enabledOn -and $GitHubEventName -notin $deploymentConfig.enabledOn) {
+        elseif ($deploymentConfig.enabledOn -and $GitHubEventName -notin @($deploymentConfig.enabledOn)) {
             $deploymentObject.Deploy = $false
-            Write-Debug "[$deploymentId] Trigger [$GitHubEventName] is not in enabledOn list [$($deploymentConfig.enabledOn -join ', ')]. Deployment is skipped."
+            Write-Debug "[$deploymentId] Trigger [$GitHubEventName] is not in enabledOn list [$(@($deploymentConfig.enabledOn) -join ', ')]. Deployment is skipped."
         }
     }
 
