@@ -64,19 +64,16 @@ function Remove-BicepComments {
                 # Check for multi-line string (''' ... ''')
                 if ($j -lt $line.Length - 2 -and $line[$j + 1] -eq "'" -and $line[$j + 2] -eq "'") {
                     $j = $j + 2
-                    $prefixBeforeString = $line.Substring(0, $j)
-                    $remainingLine = $line.Substring($j)
+                    $prefixBeforeString = $line.Substring(0, $j + 1)
+                    $remainingLine = $line.Substring($j + 1)
 
                     $multilineEndMatch = $null
                     while ($i -lt $lines.Count) {
-                        # Search for closing ''' starting at offset 1 to skip the opening delimiter for empty strings
-                        $multilineEndMatch = [regex]::Match($remainingLine, "'''", 1)
+                        $multilineEndMatch = [regex]::Match($remainingLine, "'''")
                         
                         if ($multilineEndMatch.Success) {
                             # String ends within this remaining content
-                            # Preserve everything after the closing ''' in case there's more content on the line
                             $line = $prefixBeforeString + $remainingLine
-                            # Reset j to continue checking after the string
                             $j = $prefixBeforeString.Length + $multilineEndMatch.Index + 2
                             break
                         }

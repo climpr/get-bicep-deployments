@@ -345,6 +345,31 @@ config1: value1
                 content  = "var a = $'''first''' // comment1 var b = $'''second''' /* comment2 */ var c = $'''third'''"
                 expected = "var a = $'''first'''"
             }
+            @{
+                scenario = "empty multiline interpolated string"
+                content  = "var empty = $''''''"
+                expected = "var empty = $''''''"
+            }
+            @{
+                scenario = "empty regular multiline string"
+                content  = "var empty = ''''''"
+                expected = "var empty = ''''''"
+            }
+            @{
+                scenario = "empty multiline interpolated string with comment after"
+                content  = "var empty = $'''''' // this is a comment"
+                expected = "var empty = $''''''"
+            }
+            @{
+                scenario = "empty regular multiline string with comment after"
+                content  = "var empty = '''''' // this is a comment"
+                expected = "var empty = ''''''"
+            }
+            @{
+                scenario = "empty multiline interpolated string with multi-line comment after"
+                content  = "var empty = $'''''' /* comment */ var other = 1"
+                expected = "var empty = $''''''  var other = 1"
+            }
 
         ) {
             param ($content, $expected)
