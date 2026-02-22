@@ -231,7 +231,7 @@ var message = $'''hello ${world}'''
 '@
             }
             @{
-                scenario = "multiline interpolated string ends with comment after"
+                scenario = "multiline interpolated string with comment after closing delimiter"
                 content  = "var message = $'''hello''' // this is a comment"
                 expected = "var message = $'''hello'''"
             }
