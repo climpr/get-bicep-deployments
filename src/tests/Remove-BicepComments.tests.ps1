@@ -318,7 +318,7 @@ var interpolated = $'''with ${interpolation}'''
                 expected = "var msg = $'not interpolated'"
             }
             @{
-                scenario = "single-line comment in the middle of multiline strings"
+                scenario = "single-line comment after first multiline string removes remaining content"
                 content  = "var str1 = $'''test''' // comment in middle var str2 = $'''test2'''"
                 expected = "var str1 = $'''test'''"
             }
