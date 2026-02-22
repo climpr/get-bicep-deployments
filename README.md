@@ -165,8 +165,7 @@ The first matching file is used. Per-deployment configs take precedence over gen
 {
   "location": "westeurope",
   "disabled": false,
-  "enabledOn": ["workflow_dispatch", "schedule"],
-  "disabledOn": ["pull_request_target"]
+  "enabledOn": ["workflow_dispatch", "schedule"]
 }
 ```
 
