@@ -370,6 +370,36 @@ config1: value1
                 content  = "var empty = $'''''' /* comment */ var other = 1"
                 expected = "var empty = $''''''  var other = 1"
             }
+            @{
+                scenario = "regular non-empty multiline string with comment after closing delimiter"
+                content  = "var message = '''hello''' // this is a comment"
+                expected = "var message = '''hello'''"
+            }
+            @{
+                scenario = "regular multiline string followed by code with comment"
+                content  = "var str1 = '''test''' var str2 = '''test2''' // comment"
+                expected = "var str1 = '''test''' var str2 = '''test2'''"
+            }
+            @{
+                scenario = "regular multiline string with multi-line comment after"
+                content  = "var str1 = '''test''' /* comment between */ var str2 = '''test2'''"
+                expected = "var str1 = '''test'''  var str2 = '''test2'''"
+            }
+            @{
+                scenario = "multiple alternating regular strings and comments"
+                content  = "var a = '''first''' // comment1 var b = '''second''' /* comment2 */ var c = '''third'''"
+                expected = "var a = '''first'''"
+            }
+            @{
+                scenario = "mixed interpolated and regular multiline strings with comments"
+                content  = "var a = $'''interpolated''' // comment var b = '''regular'''"
+                expected = "var a = $'''interpolated'''"
+            }
+            @{
+                scenario = "regular multiline string on single line with nested content and comment"
+                content  = "var code = '''var x = 1 // this is part of the string''' // external comment"
+                expected = "var code = '''var x = 1 // this is part of the string'''"
+            }
 
         ) {
             param ($content, $expected)
