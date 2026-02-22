@@ -223,8 +223,12 @@ with ${variable}'''
             }
             @{
                 scenario = "multiline interpolated string on single line"
-                content  = "var message = $'''hello ${world}'''"
-                expected = "var message = $'''hello ${world}'''"
+                content  = @'
+var message = $'''hello ${world}'''
+'@
+                expected = @'
+var message = $'''hello ${world}'''
+'@
             }
             @{
                 scenario = "multiline interpolated string ends with comment after"
@@ -246,8 +250,8 @@ Not interpolated: $${var}'''
             }
             @{
                 scenario = "double dollar escape on single line"
-                content  = "var message = $$'''cost is $$50'''"
-                expected = "var message = $$'''cost is $$50'''"
+                content  = "var message = `$`$'''cost is `$`$50'''"
+                expected = "var message = `$`$'''cost is `$`$50'''"
             }
             @{
                 scenario = "preserves comments inside multiline interpolated string"
