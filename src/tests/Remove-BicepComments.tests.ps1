@@ -203,4 +203,208 @@ var example = '''string wit'h \'quote\'
             | Should -BeExactly $expected
         }
     }
+
+    Context "Multiline Interpolated Strings (Bicep v0.40.2+)" {
+        It "Should handle <scenario> correctly" -TestCases @(
+            @{
+                scenario = "basic multiline interpolated string with single dollar"
+                content  = @'
+var message = $'''
+Hello, this is
+a multiline string
+with ${variable}'''
+'@
+                expected = @'
+var message = $'''
+Hello, this is
+a multiline string
+with ${variable}'''
+'@
+            }
+            @{
+                scenario = "multiline interpolated string on single line"
+                content  = @'
+var message = $'''hello ${world}'''
+'@
+                expected = @'
+var message = $'''hello ${world}'''
+'@
+            }
+            @{
+                scenario = "multiline interpolated string with comment after closing delimiter"
+                content  = "var message = $'''hello''' // this is a comment"
+                expected = "var message = $'''hello'''"
+            }
+            @{
+                scenario = "escaped dollars in multiline string"
+                content  = @'
+var message = $$'''
+Price: $$100
+Not interpolated: $${var}'''
+'@
+                expected = @'
+var message = $$'''
+Price: $$100
+Not interpolated: $${var}'''
+'@
+            }
+            @{
+                scenario = "double dollar escape on single line"
+                content  = "var message = `$`$'''cost is `$`$50'''"
+                expected = "var message = `$`$'''cost is `$`$50'''"
+            }
+            @{
+                scenario = "preserves comments inside multiline interpolated string"
+                content  = @'
+var documentation = $'''
+This is code:
+var x = 1 // not a comment
+/* also not */ a comment
+'''
+'@
+                expected = @'
+var documentation = $'''
+This is code:
+var x = 1 // not a comment
+/* also not */ a comment
+'''
+'@
+            }
+            @{
+                scenario = "multiline interpolated string followed by code with comment"
+                content  = "var str1 = $'''test''' var str2 = $'''test2''' // comment"
+                expected = "var str1 = $'''test''' var str2 = $'''test2'''"
+            }
+            @{
+                scenario = "nested quotes in multiline interpolated string"
+                content  = @'
+var quoted = $'''
+This has 'single quotes'
+and "double quotes" inside'''
+'@
+                expected = @'
+var quoted = $'''
+This has 'single quotes'
+and "double quotes" inside'''
+'@
+            }
+            @{
+                scenario = "multiline interpolated string with backslashes"
+                content  = @'
+var paths = $'''
+/path/to/file
+C:\Windows\System32'''
+'@
+                expected = @'
+var paths = $'''
+/path/to/file
+C:\Windows\System32'''
+'@
+            }
+            @{
+                scenario = "multiline string followed by interpolated multiline string"
+                content  = @'
+var plain = '''no interpolation'''
+var interpolated = $'''with ${interpolation}'''
+'@
+                expected = @'
+var plain = '''no interpolation'''
+var interpolated = $'''with ${interpolation}'''
+'@
+            }
+            @{
+                scenario = "dollar sign without triple quotes (not interpolated)"
+                content  = "var msg = $'not interpolated'"
+                expected = "var msg = $'not interpolated'"
+            }
+            @{
+                scenario = "single-line comment after first multiline string removes remaining content"
+                content  = "var str1 = $'''test''' // comment in middle var str2 = $'''test2'''"
+                expected = "var str1 = $'''test'''"
+            }
+            @{
+                scenario = "multi-line comment between two multiline interpolated strings"
+                content  = "var str1 = $'''test''' /* comment between */ var str2 = $'''test2'''"
+                expected = "var str1 = $'''test'''  var str2 = $'''test2'''"
+            }
+            @{
+                scenario = "complex scenario with multiline string before, comment, and string after"
+                content  = @'
+var config1 = $'''
+config1: value1
+''' // setup comment var config2 = $'''config2: value2'''
+'@
+                expected = @'
+var config1 = $'''
+config1: value1
+'''
+'@
+            }
+            @{
+                scenario = "multiple alternating strings and comments"
+                content  = "var a = $'''first''' // comment1 var b = $'''second''' /* comment2 */ var c = $'''third'''"
+                expected = "var a = $'''first'''"
+            }
+            @{
+                scenario = "empty multiline interpolated string"
+                content  = "var empty = $''''''"
+                expected = "var empty = $''''''"
+            }
+            @{
+                scenario = "empty regular multiline string"
+                content  = "var empty = ''''''"
+                expected = "var empty = ''''''"
+            }
+            @{
+                scenario = "empty multiline interpolated string with comment after"
+                content  = "var empty = $'''''' // this is a comment"
+                expected = "var empty = $''''''"
+            }
+            @{
+                scenario = "empty regular multiline string with comment after"
+                content  = "var empty = '''''' // this is a comment"
+                expected = "var empty = ''''''"
+            }
+            @{
+                scenario = "empty multiline interpolated string with multi-line comment after"
+                content  = "var empty = $'''''' /* comment */ var other = 1"
+                expected = "var empty = $''''''  var other = 1"
+            }
+            @{
+                scenario = "regular non-empty multiline string with comment after closing delimiter"
+                content  = "var message = '''hello''' // this is a comment"
+                expected = "var message = '''hello'''"
+            }
+            @{
+                scenario = "regular multiline string followed by code with comment"
+                content  = "var str1 = '''test''' var str2 = '''test2''' // comment"
+                expected = "var str1 = '''test''' var str2 = '''test2'''"
+            }
+            @{
+                scenario = "regular multiline string with multi-line comment after"
+                content  = "var str1 = '''test''' /* comment between */ var str2 = '''test2'''"
+                expected = "var str1 = '''test'''  var str2 = '''test2'''"
+            }
+            @{
+                scenario = "multiple alternating regular strings and comments"
+                content  = "var a = '''first''' // comment1 var b = '''second''' /* comment2 */ var c = '''third'''"
+                expected = "var a = '''first'''"
+            }
+            @{
+                scenario = "mixed interpolated and regular multiline strings with comments"
+                content  = "var a = $'''interpolated''' // comment var b = '''regular'''"
+                expected = "var a = $'''interpolated'''"
+            }
+            @{
+                scenario = "regular multiline string on single line with nested content and comment"
+                content  = "var code = '''var x = 1 // this is part of the string''' // external comment"
+                expected = "var code = '''var x = 1 // this is part of the string'''"
+            }
+
+        ) {
+            param ($content, $expected)
+            Remove-BicepComments -Content $content
+            | Should -BeExactly $expected
+        }
+    }
 }

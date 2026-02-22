@@ -64,17 +64,16 @@ function Remove-BicepComments {
                 # Check for multi-line string (''' ... ''')
                 if ($j -lt $line.Length - 2 -and $line[$j + 1] -eq "'" -and $line[$j + 2] -eq "'") {
                     $j = $j + 2
-                    $prefixBeforeString = $line.Substring(0, $j)
-                    $remainingLine = $line.Substring($j)
+                    $prefixBeforeString = $line.Substring(0, $j + 1)
+                    $remainingLine = $line.Substring($j + 1)
 
                     $multilineEndMatch = $null
                     while ($i -lt $lines.Count) {
                         $multilineEndMatch = [regex]::Match($remainingLine, "'''")
                         
-                        if ($multilineEndMatch.Success -and $multilineEndMatch.Index -gt 0) {
-                            # String ends within this line
-                            $line = $prefixBeforeString + $remainingLine.Substring(0, $multilineEndMatch.Index + 3)
-                            # Reset j to continue checking after the string
+                        if ($multilineEndMatch.Success) {
+                            # String ends within this remaining content
+                            $line = $prefixBeforeString + $remainingLine
                             $j = $prefixBeforeString.Length + $multilineEndMatch.Index + 2
                             break
                         }
