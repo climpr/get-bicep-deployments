@@ -164,8 +164,7 @@ The first matching file is used. Per-deployment configs take precedence over gen
 ```jsonc
 {
   "location": "westeurope",
-  "disabled": false,
-  "enabledOn": ["workflow_dispatch", "schedule"]
+  "disabledOn": ["pull_request_target"]
 }
 ```
 
@@ -232,12 +231,18 @@ Supported events: `push`, `pull_request_target`, `schedule`, `workflow_dispatch`
 
 ### Precedence Order
 
-Disables are restrictive and always win. The following order determines if a deployment is enabled (checked top-to-bottom):
+The following precedence rules determine if a deployment is enabled (checked top-to-bottom):
 
 1. **`disabled: true` (global)** → The deployment is always disabled, regardless of any other settings.
-2. **`disabledOn` specified** → The deployment is disabled if the current event is in the denylist.
-3. **`enabledOn` specified** → The deployment is enabled **only** if the current event is in the `enabledOn` list; everything else is disabled.
-4. **Default** → The deployment is enabled.
+2. **`disabledOn` specified** → The deployment is disabled if the current event is in this list. If the event IS in `disabledOn`, it is blocked regardless of `enabledOn`.
+3. **`enabledOn` specified** → The deployment is enabled **only** if the current event is in this list; all other events are disabled. If the event IS in `enabledOn` AND NOT in `disabledOn`, the deployment proceeds.
+4. **Default** → If neither `enabledOn` nor `disabledOn` are specified, the deployment is enabled for all events.
+
+**Example interactions:**
+- `enabledOn: ["push", "schedule"]`, `disabledOn: ["push"]` with `push` event → **Blocked** (disabledOn takes precedence)
+- `enabledOn: ["push", "schedule"]`, `disabledOn: ["pull_request"]` with `push` event → **Allowed** (push is in enabledOn and not in disabledOn)
+- `enabledOn: ["schedule"]` with `push` event → **Blocked** (push is not in enabledOn)
+- `disabledOn: ["pull_request"]` with `push` event → **Allowed** (push is not in disabledOn)
 
 ## Examples
 

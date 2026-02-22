@@ -307,6 +307,15 @@ Describe "Resolve-DeploymentConfig" {
                     expected         = $false
                 }
                 @{
+                    scenario         = "enabledOn and disabledOn both specified (event in enabledOn, not in disabledOn)"
+                    deploymentConfig = @{ 
+                        enabledOn = @("push", "workflow_dispatch")
+                        disabledOn = @("schedule")
+                    }
+                    eventName        = "push"
+                    expected         = $true
+                }
+                @{
                     scenario         = "enabledOn blocks and disabledOn would also block"
                     deploymentConfig = @{ 
                         enabledOn = @("workflow_dispatch")
