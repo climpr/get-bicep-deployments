@@ -235,7 +235,7 @@ function Get-DeploymentConfig {
     )
 
     #* Defaults
-    $jsonDepth = 3
+    $jsonDepth = 4
 
     #* Parse default deploymentconfig file
     $defaultDeploymentConfig = @{}
@@ -822,20 +822,25 @@ function Get-BicepDeployments {
                 Write-Debug "[$deploymentName][$environmentName] Skipping environment pattern check. Deployment already not included."
             }
         
-            #* Exclude disabled deployments
+            #* Check deployment mode (disabled, enabledOn, disabledOn)
             if ($deploymentObject.Deploy) {
-                Write-Debug "[$deploymentName][$environmentName] Checking if deployment is disabled in the deploymentconfig file."
                 if ($deploymentConfig.disabled) {
                     $deploymentObject.Deploy = $false
-                    Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for all triggers in the deploymentconfig file. Deployment is not included."
+                    Write-Debug "[$deploymentName][$environmentName] Deployment is disabled (globally). Deployment is not included."
                 }
-                if ($deploymentConfig.triggers -and $deploymentConfig.triggers.ContainsKey($EventName) -and $deploymentConfig.triggers[$EventName].disabled) {
+                elseif ($deploymentConfig.triggers -and $deploymentConfig.triggers.ContainsKey($EventName) -and $deploymentConfig.triggers[$EventName].disabled) {
                     $deploymentObject.Deploy = $false
-                    Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for the current trigger [$EventName] in the deploymentconfig file. Deployment is not included."
+                    Write-Warning "[$deploymentName][$environmentName] The 'triggers.<eventName>.disabled' configuration option is deprecated and will be removed in a future version. Please migrate to 'disabledOn' or 'enabledOn' instead. Example (JSON/JSONC): \`\"disabledOn\": [\"$EventName\"]\` or \`\"enabledOn\": [\"$EventName\"]\`."
+                    Write-Debug "[$deploymentName][$environmentName] Deployment is disabled for trigger [$EventName]. Deployment is not included."
                 }
-            }
-            else {
-                Write-Debug "[$deploymentName][$environmentName] Skipping deploymentconfig file deployment action check. Deployment already not included."
+                elseif ($deploymentConfig.disabledOn -and $EventName -in @($deploymentConfig.disabledOn)) {
+                    $deploymentObject.Deploy = $false
+                    Write-Debug "[$deploymentName][$environmentName] Trigger [$EventName] is in disabledOn list [$(@($deploymentConfig.disabledOn) -join ', ')]. Deployment is not included."
+                }
+                elseif ($deploymentConfig.enabledOn -and $EventName -notin @($deploymentConfig.enabledOn)) {
+                    $deploymentObject.Deploy = $false
+                    Write-Debug "[$deploymentName][$environmentName] Trigger [$EventName] is not in enabledOn list [$(@($deploymentConfig.enabledOn) -join ', ')]. Deployment is not included."
+                }
             }
 
             #* Return deploymentObject
@@ -1196,18 +1201,28 @@ function Resolve-DeploymentConfig {
     #* Add Azure Cli command to deploymentObject
     $deploymentObject | Add-Member -MemberType NoteProperty -Name "AzureCliCommand" -Value ($azCliCommand -join " ")
 
-    #* Exclude disabled deployments
-    Write-Debug "[$deploymentId] Checking if deployment is disabled in the deploymentconfig file."
-    if ($deploymentConfig.disabled) {
-        $deploymentObject.Deploy = $false
-        Write-Debug "[$deploymentId] Deployment is disabled for all triggers in the deploymentconfig file. Deployment is skipped."
-    }
-    if ($deploymentConfig.triggers -and $deploymentConfig.triggers.ContainsKey($GitHubEventName) -and $deploymentConfig.triggers[$GitHubEventName].disabled) {
-        $deploymentObject.Deploy = $false
-        Write-Debug "[$deploymentId] Deployment is disabled for the current trigger [$GitHubEventName] in the deploymentconfig file. Deployment is skipped."
+    #* Check deployment mode (disabled, enabledOn, disabledOn)
+    if ($deploymentObject.Deploy) {
+        if ($deploymentConfig.disabled) {
+            $deploymentObject.Deploy = $false
+            Write-Debug "[$deploymentId] Deployment is disabled (globally). Deployment is skipped."
+        }
+        elseif ($deploymentConfig.triggers -and $deploymentConfig.triggers.ContainsKey($GitHubEventName) -and $deploymentConfig.triggers[$GitHubEventName].disabled) {
+            $deploymentObject.Deploy = $false
+            Write-Warning "[$deploymentId] The 'triggers.<eventName>.disabled' configuration option is deprecated and will be removed in a future version. Please migrate to 'disabledOn' or 'enabledOn' instead. Example (JSON/JSONC): \`\"disabledOn\": [\"$GitHubEventName\"]\` or \`\"enabledOn\": [\"$GitHubEventName\"]\`."
+            Write-Debug "[$deploymentId] Deployment is disabled for trigger [$GitHubEventName]. Deployment is skipped."
+        }
+        elseif ($deploymentConfig.disabledOn -and $GitHubEventName -in @($deploymentConfig.disabledOn)) {
+            $deploymentObject.Deploy = $false
+            Write-Debug "[$deploymentId] Trigger [$GitHubEventName] is in disabledOn list [$(@($deploymentConfig.disabledOn) -join ', ')]. Deployment is skipped."
+        }
+        elseif ($deploymentConfig.enabledOn -and $GitHubEventName -notin @($deploymentConfig.enabledOn)) {
+            $deploymentObject.Deploy = $false
+            Write-Debug "[$deploymentId] Trigger [$GitHubEventName] is not in enabledOn list [$(@($deploymentConfig.enabledOn) -join ', ')]. Deployment is skipped."
+        }
     }
 
-    Write-Debug "[$deploymentId] deploymentObject: $($deploymentObject | ConvertTo-Json -Depth 3)"
+    Write-Debug "[$deploymentId] deploymentObject: $($deploymentObject | ConvertTo-Json -Depth 4)"
 
     #* Print deploymentObject to console
     if (!$Quiet.IsPresent) {
