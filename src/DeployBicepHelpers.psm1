@@ -217,6 +217,48 @@ function Get-ClimprConfig {
     return $mergedConfig
 }
 
+function Get-DeploymentConfigFile {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateScript({ $_ | Test-Path -PathType Container })]
+        [string]
+        $DeploymentDirectoryPath,
+        
+        [Parameter(Mandatory)]
+        [string]
+        $DeploymentFileName
+    )
+
+    #* Get most specific deploymentconfig file
+    $fileNames = @(
+        $DeploymentFileName -replace "\.(bicep|bicepparam)$", ".deploymentconfig.json"
+        $DeploymentFileName -replace "\.(bicep|bicepparam)$", ".deploymentconfig.jsonc"
+        "deploymentconfig.json"
+        "deploymentconfig.jsonc"
+    )
+
+    $foundFiles = @()
+    foreach ($fileName in $fileNames) {
+        $filePath = Join-Path -Path $DeploymentDirectoryPath -ChildPath $fileName
+        if (Test-Path $filePath) {
+            $foundFiles += $filePath
+        }
+    }
+
+    if ($foundFiles.Count -gt 1) {
+        throw "[Get-DeploymentConfigFile()] Found multiple deploymentconfig files. Only one deploymentconfig file is supported. Found files: [$foundFiles]"
+    }
+
+    if ($foundFiles.Count -eq 1) {
+        Write-Debug "[Get-DeploymentConfigFile()] Found deploymentconfig file: $($foundFiles[0])"
+        return $foundFiles[0]
+    }
+    
+    Write-Debug "[Get-DeploymentConfigFile()] Did not find any deploymentconfig file."
+    return $null 
+}
+
 function Get-DeploymentConfig {
     [CmdletBinding()]
     param (
@@ -268,29 +310,11 @@ function Get-DeploymentConfig {
     }
 
     #* Parse most specific deploymentconfig file
-    $fileNames = @(
-        $DeploymentFileName -replace "\.(bicep|bicepparam)$", ".deploymentconfig.json"
-        $DeploymentFileName -replace "\.(bicep|bicepparam)$", ".deploymentconfig.jsonc"
-        "deploymentconfig.json"
-        "deploymentconfig.jsonc"
-    )
+    $deploymentConfigFile = Get-DeploymentConfigFile -DeploymentDirectoryPath $DeploymentDirectoryPath -DeploymentFileName $DeploymentFileName
 
-    $config = @{}
-    $foundFiles = @()
-    foreach ($fileName in $fileNames) {
-        $filePath = Join-Path -Path $DeploymentDirectoryPath -ChildPath $fileName
-        if (Test-Path $filePath) {
-            $foundFiles += $filePath
-        }
-    }
-
-    if ($foundFiles.Count -eq 1) {
-        $config = Get-Content -Path $foundFiles[0] | ConvertFrom-Json -NoEnumerate -Depth $jsonDepth -AsHashtable
-        Write-Debug "[Get-DeploymentConfig()] Found deploymentconfig file: $($foundFiles[0])"
+    if ($null -ne $deploymentConfigFile) {
+        $config = Get-Content -Path $deploymentConfigFile | ConvertFrom-Json -NoEnumerate -Depth $jsonDepth -AsHashtable
         Write-Debug "[Get-DeploymentConfig()] Found deploymentconfig: $($config | ConvertTo-Json -Depth $jsonDepth)"
-    }
-    elseif ($foundFiles.Count -gt 1) {
-        throw "[Get-DeploymentConfig()] Found multiple deploymentconfig files. Only one deploymentconfig file is supported. Found files: [$foundFiles]"
     }
     else {
         if ($DefaultDeploymentConfigPath) {
@@ -711,6 +735,9 @@ function Get-BicepDeployments {
             Write-Debug "[$deploymentName][$environmentName] Calculated environment: '$environmentName'."
         
             #* Get deploymentConfig
+            $deploymentConfigFile = Get-DeploymentConfigFile `
+                -DeploymentDirectoryPath $deploymentDirectoryRelativePath `
+                -DeploymentFileName $deploymentFile.Name
             $deploymentConfig = Get-DeploymentConfig `
                 -DeploymentDirectoryPath $deploymentDirectoryRelativePath `
                 -DeploymentFileName $deploymentFile.Name
@@ -747,7 +774,13 @@ function Get-BicepDeployments {
                     if ($deploymentObject.Modified) {
                         break
                     }
-                    $deploymentObject.Modified = $deploymentObject.References -contains (Resolve-Path -Relative -Path $changedFile)
+                    $changedFileRelativePath = Resolve-Path -Relative -Path $changedFile
+                    $deploymentObject.Modified = $deploymentObject.References -contains $changedFileRelativePath
+
+                    if (($null -ne $deploymentConfigFile) -and ($deploymentConfigFile -eq $changedFileRelativePath)) {
+                        Write-Debug "[$deploymentName][$environmentName] deploymentconfig has been modified."
+                        $deploymentObject.Modified = $true
+                    }
                 }
             
                 if ($deploymentObject.Modified) {
